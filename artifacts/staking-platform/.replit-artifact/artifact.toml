@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Staking Platform"
+version = "1.0.0"
+id = "artifacts/staking-platform"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21815
+
+[services.development]
+run = "pnpm --filter @workspace/staking-platform run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/staking-platform", "run", "build" ]
+publicDir = "artifacts/staking-platform/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21815"
+BASE_PATH = "/"
