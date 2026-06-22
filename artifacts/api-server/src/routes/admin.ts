@@ -1,0 +1,478 @@
+import { Router } from "express";
+import { eq, sql, desc, and, inArray } from "drizzle-orm";
+import {
+  db, usersTable, stakesTable, transactionsTable,
+  auditLogsTable, platformSettingsTable, notificationsTable,
+} from "@workspace/db";
+import { requireAdmin } from "../lib/auth";
+import { disburseB2C } from "../lib/payhero";
+import { createNotification } from "../lib/notifications";
+import { nanoid } from "nanoid";
+import {
+  AdminListUsersResponse,
+  AdminUpdateUserParams,
+  AdminUpdateUserBody,
+  AdminUpdateUserResponse,
+  GetAdminAnalyticsResponse,
+  AdminListWithdrawalsResponse,
+  DisburseWithdrawalParams,
+  DisburseWithdrawalResponse,
+  RejectWithdrawalParams,
+  RejectWithdrawalBody,
+  RejectWithdrawalResponse,
+  ListAuditLogsResponse,
+  GetAdminSettingsResponse,
+  UpdateAdminSettingsBody,
+  UpdateAdminSettingsResponse,
+  ProcessMaturedStakesResponse,
+} from "@workspace/api-zod";
+
+const router = Router();
+
+// ── Users ──────────────────────────────────────────────────────────────────
+router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
+  const users = await db.query.usersTable.findMany({
+    orderBy: (t, { desc }) => [desc(t.createdAt)],
+  });
+
+  const stakeCountsRaw = await db.select({ userId: stakesTable.userId, count: sql<number>`count(*)` })
+    .from(stakesTable)
+    .where(eq(stakesTable.status, "ACTIVE"))
+    .groupBy(stakesTable.userId);
+  const stakeMap = Object.fromEntries(stakeCountsRaw.map((s) => [s.userId, Number(s.count)]));
+
+  res.json(AdminListUsersResponse.parse(users.map((u) => ({
+    ...u,
+    availableBalance: Number(u.availableBalance),
+    totalEarnings: Number(u.totalEarnings),
+    referralRewards: Number(u.referralRewards),
+    activeStakesCount: stakeMap[u.id] ?? 0,
+  }))));
+});
+
+router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> => {
+  const params = AdminUpdateUserParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const parsed = AdminUpdateUserBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const target = await db.query.usersTable.findFirst({ where: eq(usersTable.id, params.data.id) });
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const updates: Partial<typeof usersTable.$inferInsert> = {};
+  if (parsed.data.role !== undefined) updates.role = parsed.data.role;
+  if (parsed.data.isLocked !== undefined) updates.isLocked = parsed.data.isLocked;
+
+  if (parsed.data.balanceAdjustment !== undefined && parsed.data.balanceAdjustment !== 0) {
+    const newBalance = Number(target.availableBalance) + parsed.data.balanceAdjustment;
+    updates.availableBalance = newBalance.toFixed(2);
+
+    const isCredit = parsed.data.balanceAdjustment > 0;
+    await db.insert(transactionsTable).values({
+      userId: target.id,
+      type: isCredit ? "MANUAL_CREDIT" : "MANUAL_DEBIT",
+      amount: Math.abs(parsed.data.balanceAdjustment).toFixed(2),
+      status: "COMPLETED",
+      description: parsed.data.adjustmentNote ?? `Admin ${isCredit ? "credit" : "debit"}`,
+    });
+  }
+
+  const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, params.data.id)).returning();
+
+  // Audit log
+  await db.insert(auditLogsTable).values({
+    adminId: req.userId!,
+    action: `Updated user #${params.data.id}: ${JSON.stringify(parsed.data)}`,
+    targetUserId: params.data.id,
+    note: parsed.data.adjustmentNote ?? null,
+  });
+
+  res.json(AdminUpdateUserResponse.parse({
+    ...updated,
+    availableBalance: Number(updated.availableBalance),
+    totalEarnings: Number(updated.totalEarnings),
+    referralRewards: Number(updated.referralRewards),
+    activeStakesCount: 0,
+  }));
+});
+
+// ── Analytics ──────────────────────────────────────────────────────────────
+router.get("/admin/analytics", requireAdmin, async (_req, res): Promise<void> => {
+  const tvlResult = await db.select({ total: sql<number>`coalesce(sum(current_value), 0)` })
+    .from(stakesTable).where(eq(stakesTable.status, "ACTIVE"));
+
+  const depositsResult = await db.select({ total: sql<number>`coalesce(sum(amount), 0)` })
+    .from(transactionsTable)
+    .where(and(eq(transactionsTable.type, "DEPOSIT"), eq(transactionsTable.status, "COMPLETED")));
+
+  const withdrawalsResult = await db.select({ total: sql<number>`coalesce(sum(amount), 0)` })
+    .from(transactionsTable)
+    .where(and(eq(transactionsTable.type, "WITHDRAWAL"), eq(transactionsTable.status, "COMPLETED")));
+
+  const activeStakesResult = await db.select({ count: sql<number>`count(*)` })
+    .from(stakesTable).where(eq(stakesTable.status, "ACTIVE"));
+
+  const totalUsersResult = await db.select({ count: sql<number>`count(*)` }).from(usersTable);
+
+  const revenueResult = await db.select({ total: sql<number>`coalesce(sum(amount), 0)` })
+    .from(transactionsTable)
+    .where(and(eq(transactionsTable.type, "INTEREST"), eq(transactionsTable.status, "COMPLETED")));
+
+  // Daily stats for last 14 days
+  const dailyDeposits = await db.select({
+    date: sql<string>`date_trunc('day', created_at)::date::text`,
+    total: sql<number>`coalesce(sum(amount), 0)`,
+  }).from(transactionsTable)
+    .where(and(eq(transactionsTable.type, "DEPOSIT"), eq(transactionsTable.status, "COMPLETED"),
+      sql`created_at >= now() - interval '14 days'`))
+    .groupBy(sql`date_trunc('day', created_at)`);
+
+  const dailyWithdrawals = await db.select({
+    date: sql<string>`date_trunc('day', created_at)::date::text`,
+    total: sql<number>`coalesce(sum(amount), 0)`,
+  }).from(transactionsTable)
+    .where(and(eq(transactionsTable.type, "WITHDRAWAL"), eq(transactionsTable.status, "COMPLETED"),
+      sql`created_at >= now() - interval '14 days'`))
+    .groupBy(sql`date_trunc('day', created_at)`);
+
+  const dates = [...new Set([...dailyDeposits.map((d) => d.date), ...dailyWithdrawals.map((d) => d.date)])].sort();
+
+  const dailyStats = dates.map((date) => ({
+    date,
+    deposits: Number(dailyDeposits.find((d) => d.date === date)?.total ?? 0),
+    withdrawals: Number(dailyWithdrawals.find((d) => d.date === date)?.total ?? 0),
+    newStakes: 0,
+    interest: 0,
+  }));
+
+  res.json(GetAdminAnalyticsResponse.parse({
+    tvl: Number(tvlResult[0]?.total ?? 0),
+    totalDeposits: Number(depositsResult[0]?.total ?? 0),
+    totalWithdrawals: Number(withdrawalsResult[0]?.total ?? 0),
+    activeStakesCount: Number(activeStakesResult[0]?.count ?? 0),
+    totalUsers: Number(totalUsersResult[0]?.count ?? 0),
+    platformRevenue: Number(revenueResult[0]?.total ?? 0),
+    dailyStats,
+  }));
+});
+
+// ── Withdrawals ─────────────────────────────────────────────────────────────
+router.get("/admin/withdrawals", requireAdmin, async (_req, res): Promise<void> => {
+  const txs = await db.query.transactionsTable.findMany({
+    where: eq(transactionsTable.type, "WITHDRAWAL"),
+    orderBy: (t, { desc }) => [desc(t.createdAt)],
+  });
+
+  const userIds = [...new Set(txs.map((t) => t.userId))];
+  const users = userIds.length > 0
+    ? await db.query.usersTable.findMany({ where: (t, { inArray }) => inArray(t.id, userIds) })
+    : [];
+  const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+
+  res.json(AdminListWithdrawalsResponse.parse(txs.map((t) => ({
+    id: t.id,
+    userId: t.userId,
+    userEmail: userMap[t.userId]?.email ?? "",
+    userFullName: userMap[t.userId]?.fullName ?? null,
+    amount: Number(t.amount),
+    status: t.status,
+    phoneNumber: t.phoneNumber ?? "",
+    payheroRef: t.payheroRef ?? null,
+    createdAt: t.createdAt.toISOString(),
+  }))));
+});
+
+router.post("/admin/withdrawals/:id/disburse", requireAdmin, async (req, res): Promise<void> => {
+  const params = DisburseWithdrawalParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const tx = await db.query.transactionsTable.findFirst({ where: eq(transactionsTable.id, params.data.id) });
+  if (!tx || tx.type !== "WITHDRAWAL") {
+    res.status(404).json({ error: "Withdrawal not found" });
+    return;
+  }
+  if (tx.status !== "PENDING") {
+    res.status(400).json({ error: "Withdrawal is not pending" });
+    return;
+  }
+
+  const domains = (process.env.REPLIT_DOMAINS ?? "").split(",")[0];
+  const callbackUrl = `https://${domains}/api/webhooks/payhero`;
+
+  try {
+    await disburseB2C({
+      amount: Number(tx.amount),
+      phoneNumber: tx.phoneNumber ?? "",
+      reference: tx.externalReference ?? `WIT-${nanoid(12).toUpperCase()}`,
+      callbackUrl,
+    });
+
+    const [updated] = await db.update(transactionsTable)
+      .set({ status: "COMPLETED" })
+      .where(eq(transactionsTable.id, tx.id))
+      .returning();
+
+    await createNotification({
+      userId: tx.userId,
+      type: "WITHDRAWAL_APPROVED",
+      title: "Withdrawal Approved",
+      message: `Your withdrawal of KES ${Number(tx.amount).toLocaleString("en-KE", { minimumFractionDigits: 2 })} has been processed.`,
+    });
+
+    await db.insert(auditLogsTable).values({
+      adminId: req.userId!,
+      action: `Disbursed withdrawal #${tx.id} of KES ${tx.amount} to ${tx.phoneNumber}`,
+      targetUserId: tx.userId,
+    });
+
+    const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, tx.userId) });
+    res.json(DisburseWithdrawalResponse.parse({
+      id: updated.id,
+      userId: updated.userId,
+      userEmail: user?.email ?? "",
+      userFullName: user?.fullName ?? null,
+      amount: Number(updated.amount),
+      status: updated.status,
+      phoneNumber: updated.phoneNumber ?? "",
+      payheroRef: updated.payheroRef ?? null,
+      createdAt: updated.createdAt.toISOString(),
+    }));
+  } catch (err: any) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.post("/admin/withdrawals/:id/reject", requireAdmin, async (req, res): Promise<void> => {
+  const params = RejectWithdrawalParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const parsed = RejectWithdrawalBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const tx = await db.query.transactionsTable.findFirst({ where: eq(transactionsTable.id, params.data.id) });
+  if (!tx || tx.status !== "PENDING") {
+    res.status(404).json({ error: "Pending withdrawal not found" });
+    return;
+  }
+
+  // Refund to user
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, tx.userId) });
+  await db.transaction(async (trx) => {
+    await trx.update(transactionsTable).set({ status: "REJECTED" }).where(eq(transactionsTable.id, tx.id));
+    if (user) {
+      await trx.update(usersTable)
+        .set({ availableBalance: (Number(user.availableBalance) + Number(tx.amount)).toFixed(2) })
+        .where(eq(usersTable.id, tx.userId));
+    }
+  });
+
+  await createNotification({
+    userId: tx.userId,
+    type: "WITHDRAWAL_REJECTED",
+    title: "Withdrawal Rejected",
+    message: `Your withdrawal of KES ${Number(tx.amount).toLocaleString("en-KE", { minimumFractionDigits: 2 })} was rejected. Reason: ${parsed.data.reason}. Funds returned to your balance.`,
+  });
+
+  await db.insert(auditLogsTable).values({
+    adminId: req.userId!,
+    action: `Rejected withdrawal #${tx.id}`,
+    targetUserId: tx.userId,
+    note: parsed.data.reason,
+  });
+
+  const updated = await db.query.transactionsTable.findFirst({ where: eq(transactionsTable.id, tx.id) });
+  res.json(RejectWithdrawalResponse.parse({
+    id: updated!.id,
+    userId: updated!.userId,
+    userEmail: user?.email ?? "",
+    userFullName: user?.fullName ?? null,
+    amount: Number(updated!.amount),
+    status: updated!.status,
+    phoneNumber: updated!.phoneNumber ?? "",
+    payheroRef: updated!.payheroRef ?? null,
+    createdAt: updated!.createdAt.toISOString(),
+  }));
+});
+
+// ── Audit Logs ──────────────────────────────────────────────────────────────
+router.get("/admin/audit-logs", requireAdmin, async (_req, res): Promise<void> => {
+  const logs = await db.query.auditLogsTable.findMany({
+    orderBy: (t, { desc }) => [desc(t.createdAt)],
+    limit: 200,
+  });
+
+  const adminIds = [...new Set(logs.map((l) => l.adminId))];
+  const admins = adminIds.length > 0
+    ? await db.query.usersTable.findMany({ where: (t, { inArray }) => inArray(t.id, adminIds) })
+    : [];
+  const adminMap = Object.fromEntries(admins.map((u) => [u.id, u]));
+
+  res.json(ListAuditLogsResponse.parse(logs.map((l) => ({
+    ...l,
+    adminEmail: adminMap[l.adminId]?.email ?? "",
+    targetUserId: l.targetUserId ?? null,
+    note: l.note ?? null,
+    metadata: l.metadata ?? null,
+  }))));
+});
+
+// ── Settings ────────────────────────────────────────────────────────────────
+router.get("/admin/settings", requireAdmin, async (_req, res): Promise<void> => {
+  const rows = await db.select().from(platformSettingsTable);
+  const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+
+  res.json(GetAdminSettingsResponse.parse({
+    payheroUsername: map["payhero_username"] ?? "",
+    payheroPassword: map["payhero_password"] ?? "",
+    payheroChannelId: map["payhero_channel_id"] ?? "",
+    tier1ReferralPercent: Number(map["tier1_referral_percent"] ?? "5"),
+    tier2ReferralPercent: Number(map["tier2_referral_percent"] ?? "2"),
+  }));
+});
+
+router.patch("/admin/settings", requireAdmin, async (req, res): Promise<void> => {
+  const parsed = UpdateAdminSettingsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const adminClerkId = req.dbUser?.clerkId ?? "admin";
+  const keyMap: Record<string, string> = {
+    payheroUsername: "payhero_username",
+    payheroPassword: "payhero_password",
+    payheroChannelId: "payhero_channel_id",
+    tier1ReferralPercent: "tier1_referral_percent",
+    tier2ReferralPercent: "tier2_referral_percent",
+  };
+
+  for (const [field, dbKey] of Object.entries(keyMap)) {
+    const val = (parsed.data as Record<string, unknown>)[field];
+    if (val !== undefined) {
+      await db.insert(platformSettingsTable)
+        .values({ key: dbKey, value: String(val), updatedBy: adminClerkId })
+        .onConflictDoUpdate({
+          target: platformSettingsTable.key,
+          set: { value: String(val), updatedBy: adminClerkId },
+        });
+    }
+  }
+
+  await db.insert(auditLogsTable).values({
+    adminId: req.userId!,
+    action: `Updated platform settings`,
+    note: Object.keys(parsed.data).join(", "),
+  });
+
+  const rows = await db.select().from(platformSettingsTable);
+  const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+
+  res.json(UpdateAdminSettingsResponse.parse({
+    payheroUsername: map["payhero_username"] ?? "",
+    payheroPassword: map["payhero_password"] ?? "",
+    payheroChannelId: map["payhero_channel_id"] ?? "",
+    tier1ReferralPercent: Number(map["tier1_referral_percent"] ?? "5"),
+    tier2ReferralPercent: Number(map["tier2_referral_percent"] ?? "2"),
+  }));
+});
+
+// ── Cron: Process Matured Stakes ─────────────────────────────────────────────
+router.post("/admin/cron/process-stakes", requireAdmin, async (_req, res): Promise<void> => {
+  const now = new Date();
+  const matured = await db.query.stakesTable.findMany({
+    where: and(eq(stakesTable.status, "ACTIVE"), sql`end_date <= ${now}`),
+    with: { plan: true },
+  });
+
+  let completed = 0;
+  let autoInvested = 0;
+
+  for (const stake of matured) {
+    const roi = Number(stake.plan.roiPercent) / 100;
+    const principal = Number(stake.principalAmount);
+    const interest = principal * roi;
+    const total = principal + interest;
+
+    if (stake.autoInvest) {
+      // Roll over: create new stake with same plan, total as principal
+      const newEndDate = new Date();
+      newEndDate.setDate(newEndDate.getDate() + stake.plan.durationDays);
+
+      await db.transaction(async (tx) => {
+        await tx.update(stakesTable).set({ status: "COMPLETED", accruedInterest: interest.toFixed(2) }).where(eq(stakesTable.id, stake.id));
+
+        await tx.insert(stakesTable).values({
+          userId: stake.userId,
+          planId: stake.planId,
+          principalAmount: total.toFixed(2),
+          currentValue: total.toFixed(2),
+          accruedInterest: "0",
+          endDate: newEndDate,
+          autoInvest: true,
+        });
+
+        const user = await tx.query.usersTable.findFirst({ where: eq(usersTable.id, stake.userId) });
+        await tx.update(usersTable).set({
+          totalEarnings: (Number(user!.totalEarnings) + interest).toFixed(2),
+        }).where(eq(usersTable.id, stake.userId));
+
+        await tx.insert(transactionsTable).values({
+          userId: stake.userId,
+          type: "INTEREST",
+          amount: interest.toFixed(2),
+          status: "COMPLETED",
+          description: `Auto-invest rollover on ${stake.plan.name}`,
+        });
+      });
+      autoInvested++;
+    } else {
+      // Return funds to available balance
+      await db.transaction(async (tx) => {
+        await tx.update(stakesTable).set({ status: "COMPLETED", accruedInterest: interest.toFixed(2) }).where(eq(stakesTable.id, stake.id));
+
+        const user = await tx.query.usersTable.findFirst({ where: eq(usersTable.id, stake.userId) });
+        await tx.update(usersTable).set({
+          availableBalance: (Number(user!.availableBalance) + total).toFixed(2),
+          totalEarnings: (Number(user!.totalEarnings) + interest).toFixed(2),
+        }).where(eq(usersTable.id, stake.userId));
+
+        await tx.insert(transactionsTable).values({
+          userId: stake.userId,
+          type: "INTEREST",
+          amount: interest.toFixed(2),
+          status: "COMPLETED",
+          description: `Matured: ${stake.plan.name} returned with ${stake.plan.roiPercent}% ROI`,
+        });
+      });
+
+      await createNotification({
+        userId: stake.userId,
+        type: "STAKE_MATURED",
+        title: "Stake Matured",
+        message: `Your ${stake.plan.name} stake has matured. KES ${total.toLocaleString("en-KE", { minimumFractionDigits: 2 })} (principal + interest) returned to your balance.`,
+      });
+      completed++;
+    }
+  }
+
+  res.json(ProcessMaturedStakesResponse.parse({ processed: matured.length, autoInvested, completed }));
+});
+
+export default router;

@@ -1,22 +1,28 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Staking Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: users
+  - name: staking-plans
+  - name: stakes
+  - name: transactions
+  - name: referrals
+  - name: notifications
+  - name: admin
+  - name: webhooks
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +30,812 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Users ──────────────────────────────────────────────────────────────────
+  /users/me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: Get current user profile
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+    patch:
+      operationId: updateMe
+      tags: [users]
+      summary: Update current user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserProfileUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/me/onboarding:
+    post:
+      operationId: completeOnboarding
+      tags: [users]
+      summary: Complete onboarding with full profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardingInput"
+      responses:
+        "200":
+          description: Onboarding complete
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/me/dashboard:
+    get:
+      operationId: getDashboard
+      tags: [users]
+      summary: Get dashboard summary metrics
+      responses:
+        "200":
+          description: Dashboard metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  # ── Staking Plans ──────────────────────────────────────────────────────────
+  /staking-plans:
+    get:
+      operationId: listStakingPlans
+      tags: [staking-plans]
+      summary: List all active staking plans
+      responses:
+        "200":
+          description: List of staking plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StakingPlan"
+    post:
+      operationId: createStakingPlan
+      tags: [staking-plans]
+      summary: Admin create staking plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StakingPlanInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StakingPlan"
+
+  /staking-plans/{id}:
+    patch:
+      operationId: updateStakingPlan
+      tags: [staking-plans]
+      summary: Admin update staking plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StakingPlanUpdate"
+      responses:
+        "200":
+          description: Updated plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StakingPlan"
+    delete:
+      operationId: deleteStakingPlan
+      tags: [staking-plans]
+      summary: Admin delete staking plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Stakes ─────────────────────────────────────────────────────────────────
+  /stakes:
+    get:
+      operationId: listStakes
+      tags: [stakes]
+      summary: List current user stakes
+      responses:
+        "200":
+          description: User stakes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Stake"
+    post:
+      operationId: createStake
+      tags: [stakes]
+      summary: Create a new stake
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StakeInput"
+      responses:
+        "201":
+          description: Stake created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stake"
+
+  /stakes/{id}/break:
+    post:
+      operationId: breakStake
+      tags: [stakes]
+      summary: Early unstake with penalty
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Stake broken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stake"
+
+  # ── Transactions ───────────────────────────────────────────────────────────
+  /transactions:
+    get:
+      operationId: listTransactions
+      tags: [transactions]
+      summary: List current user transactions
+      responses:
+        "200":
+          description: Transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+
+  /transactions/deposit:
+    post:
+      operationId: initiateDeposit
+      tags: [transactions]
+      summary: Initiate STK Push deposit via PayHero
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepositInput"
+      responses:
+        "200":
+          description: STK push initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DepositResponse"
+
+  /transactions/withdraw:
+    post:
+      operationId: requestWithdrawal
+      tags: [transactions]
+      summary: Request a cashout withdrawal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawalInput"
+      responses:
+        "201":
+          description: Withdrawal request logged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  # ── PayHero Webhook ─────────────────────────────────────────────────────────
+  /webhooks/payhero:
+    post:
+      operationId: payheroWebhook
+      tags: [webhooks]
+      summary: PayHero payment webhook callback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayheroWebhookPayload"
+      responses:
+        "200":
+          description: Processed
+
+  # ── Referrals ──────────────────────────────────────────────────────────────
+  /referrals:
+    get:
+      operationId: getReferrals
+      tags: [referrals]
+      summary: Get user referral info and referred users
+      responses:
+        "200":
+          description: Referral info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferralInfo"
+
+  # ── Notifications ──────────────────────────────────────────────────────────
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List user notifications
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/{id}/read:
+    patch:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+
+  /notifications/read-all:
+    patch:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      responses:
+        "200":
+          description: Done
+
+  # ── Admin ──────────────────────────────────────────────────────────────────
+  /admin/users:
+    get:
+      operationId: adminListUsers
+      tags: [admin]
+      summary: List all users (admin)
+      responses:
+        "200":
+          description: All users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+
+  /admin/users/{id}:
+    patch:
+      operationId: adminUpdateUser
+      tags: [admin]
+      summary: Update user role, lock status, or balance (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+
+  /admin/analytics:
+    get:
+      operationId: getAdminAnalytics
+      tags: [admin]
+      summary: Platform analytics — TVL, revenue, volumes, active stakes
+      responses:
+        "200":
+          description: Analytics data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAnalytics"
+
+  /admin/withdrawals:
+    get:
+      operationId: adminListWithdrawals
+      tags: [admin]
+      summary: List pending withdrawal requests (admin)
+      responses:
+        "200":
+          description: Pending withdrawals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminWithdrawal"
+
+  /admin/withdrawals/{id}/disburse:
+    post:
+      operationId: disburseWithdrawal
+      tags: [admin]
+      summary: Disburse withdrawal via PayHero B2C
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Disbursed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminWithdrawal"
+
+  /admin/withdrawals/{id}/reject:
+    post:
+      operationId: rejectWithdrawal
+      tags: [admin]
+      summary: Reject a withdrawal request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectInput"
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminWithdrawal"
+
+  /admin/audit-logs:
+    get:
+      operationId: listAuditLogs
+      tags: [admin]
+      summary: List audit logs (admin)
+      responses:
+        "200":
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLog"
+
+  /admin/settings:
+    get:
+      operationId: getAdminSettings
+      tags: [admin]
+      summary: Get platform settings including PayHero credentials
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformSettings"
+    patch:
+      operationId: updateAdminSettings
+      tags: [admin]
+      summary: Update platform settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlatformSettingsUpdate"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformSettings"
+
+  /admin/cron/process-stakes:
+    post:
+      operationId: processMaturedStakes
+      tags: [admin]
+      summary: Process matured stakes and auto-invest rollovers
+      responses:
+        "200":
+          description: Processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CronResult"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    # ── User ──────────────────────────────────────────────────────────────
+    User:
+      type: object
+      required: [id, clerkId, email, role, availableBalance, totalEarnings, referralRewards, referralCode, onboardingComplete, isLocked, createdAt]
+      properties:
+        id:             { type: integer }
+        clerkId:        { type: string }
+        email:          { type: string }
+        fullName:       { type: ["string", "null"] }
+        location:       { type: ["string", "null"] }
+        mpesaNumber:    { type: ["string", "null"] }
+        role:           { type: string, enum: [USER, ADMIN] }
+        availableBalance:  { type: number }
+        totalEarnings:     { type: number }
+        referralRewards:   { type: number }
+        referralCode:      { type: string }
+        onboardingComplete: { type: boolean }
+        isLocked:          { type: boolean }
+        createdAt:         { type: string, format: date-time }
+
+    UserProfileUpdate:
+      type: object
+      properties:
+        fullName:    { type: string }
+        location:    { type: string }
+        mpesaNumber: { type: string }
+
+    OnboardingInput:
+      type: object
+      required: [fullName, location, mpesaNumber]
+      properties:
+        fullName:    { type: string }
+        location:    { type: string }
+        mpesaNumber: { type: string }
+
+    DashboardSummary:
+      type: object
+      required: [availableBalance, totalStaked, totalEarnings, referralRewards, activeStakesCount, recentTransactions]
+      properties:
+        availableBalance:   { type: number }
+        totalStaked:        { type: number }
+        totalEarnings:      { type: number }
+        referralRewards:    { type: number }
+        activeStakesCount:  { type: integer }
+        recentTransactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+
+    # ── Staking Plans ──────────────────────────────────────────────────────
+    StakingPlan:
+      type: object
+      required: [id, name, durationDays, roiPercent, minAmount, maxAmount, earlyWithdrawalPenalty, isActive, createdAt]
+      properties:
+        id:                     { type: integer }
+        name:                   { type: string }
+        durationDays:           { type: integer }
+        roiPercent:             { type: number }
+        minAmount:              { type: number }
+        maxAmount:              { type: number }
+        earlyWithdrawalPenalty: { type: number }
+        isActive:               { type: boolean }
+        createdAt:              { type: string, format: date-time }
+
+    StakingPlanInput:
+      type: object
+      required: [name, durationDays, roiPercent, minAmount, maxAmount, earlyWithdrawalPenalty]
+      properties:
+        name:                   { type: string }
+        durationDays:           { type: integer }
+        roiPercent:             { type: number }
+        minAmount:              { type: number }
+        maxAmount:              { type: number }
+        earlyWithdrawalPenalty: { type: number }
+        isActive:               { type: boolean }
+
+    StakingPlanUpdate:
+      type: object
+      properties:
+        name:                   { type: string }
+        durationDays:           { type: integer }
+        roiPercent:             { type: number }
+        minAmount:              { type: number }
+        maxAmount:              { type: number }
+        earlyWithdrawalPenalty: { type: number }
+        isActive:               { type: boolean }
+
+    # ── Stakes ─────────────────────────────────────────────────────────────
+    Stake:
+      type: object
+      required: [id, userId, planId, plan, principalAmount, currentValue, accruedInterest, startDate, endDate, status, autoInvest, createdAt]
+      properties:
+        id:               { type: integer }
+        userId:           { type: integer }
+        planId:           { type: integer }
+        plan:
+          $ref: "#/components/schemas/StakingPlan"
+        principalAmount:  { type: number }
+        currentValue:     { type: number }
+        accruedInterest:  { type: number }
+        startDate:        { type: string, format: date-time }
+        endDate:          { type: string, format: date-time }
+        status:           { type: string, enum: [ACTIVE, COMPLETED, BROKEN] }
+        autoInvest:       { type: boolean }
+        createdAt:        { type: string, format: date-time }
+
+    StakeInput:
+      type: object
+      required: [planId, amount]
+      properties:
+        planId:     { type: integer }
+        amount:     { type: number }
+        autoInvest: { type: boolean }
+
+    # ── Transactions ───────────────────────────────────────────────────────
+    Transaction:
+      type: object
+      required: [id, userId, type, amount, status, description, createdAt]
+      properties:
+        id:                { type: integer }
+        userId:            { type: integer }
+        type:              { type: string, enum: [DEPOSIT, WITHDRAWAL, STAKE, UNSTAKE, INTEREST, REFERRAL_REWARD, MANUAL_CREDIT, MANUAL_DEBIT] }
+        amount:            { type: number }
+        status:            { type: string, enum: [PENDING, COMPLETED, FAILED, REJECTED] }
+        description:       { type: string }
+        externalReference: { type: ["string", "null"] }
+        payheroRef:        { type: ["string", "null"] }
+        createdAt:         { type: string, format: date-time }
+
+    DepositInput:
+      type: object
+      required: [amount, phoneNumber]
+      properties:
+        amount:      { type: number }
+        phoneNumber: { type: string }
+
+    DepositResponse:
+      type: object
+      required: [success, message, externalReference]
+      properties:
+        success:           { type: boolean }
+        message:           { type: string }
+        externalReference: { type: string }
+
+    WithdrawalInput:
+      type: object
+      required: [amount, phoneNumber]
+      properties:
+        amount:      { type: number }
+        phoneNumber: { type: string }
+
+    PayheroWebhookPayload:
+      type: object
+      properties:
+        reference:     { type: string }
+        status:        { type: string }
+        amount:        { type: number }
+        phone:         { type: string }
+        merchantRef:   { type: string }
+
+    # ── Referrals ──────────────────────────────────────────────────────────
+    ReferralInfo:
+      type: object
+      required: [referralCode, referralLink, tier1Count, tier2Count, tier1Earnings, tier2Earnings, referredUsers]
+      properties:
+        referralCode:   { type: string }
+        referralLink:   { type: string }
+        tier1Count:     { type: integer }
+        tier2Count:     { type: integer }
+        tier1Earnings:  { type: number }
+        tier2Earnings:  { type: number }
+        referredUsers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReferredUser"
+
+    ReferredUser:
+      type: object
+      required: [id, fullName, email, tier, joinedAt, hasActiveStake]
+      properties:
+        id:            { type: integer }
+        fullName:      { type: ["string", "null"] }
+        email:         { type: string }
+        tier:          { type: integer }
+        joinedAt:      { type: string, format: date-time }
+        hasActiveStake: { type: boolean }
+
+    # ── Notifications ──────────────────────────────────────────────────────
+    Notification:
+      type: object
+      required: [id, userId, type, title, message, isRead, createdAt]
+      properties:
+        id:        { type: integer }
+        userId:    { type: integer }
+        type:      { type: string, enum: [DEPOSIT, WITHDRAWAL_APPROVED, WITHDRAWAL_REJECTED, STAKE_MATURED, REFERRAL_EARNED, ADMIN_MESSAGE] }
+        title:     { type: string }
+        message:   { type: string }
+        isRead:    { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    # ── Admin ──────────────────────────────────────────────────────────────
+    AdminUser:
+      type: object
+      required: [id, clerkId, email, role, availableBalance, totalEarnings, referralRewards, isLocked, onboardingComplete, createdAt]
+      properties:
+        id:               { type: integer }
+        clerkId:          { type: string }
+        email:            { type: string }
+        fullName:         { type: ["string", "null"] }
+        location:         { type: ["string", "null"] }
+        mpesaNumber:      { type: ["string", "null"] }
+        role:             { type: string, enum: [USER, ADMIN] }
+        availableBalance: { type: number }
+        totalEarnings:    { type: number }
+        referralRewards:  { type: number }
+        isLocked:         { type: boolean }
+        onboardingComplete: { type: boolean }
+        activeStakesCount:  { type: integer }
+        createdAt:        { type: string, format: date-time }
+
+    AdminUserUpdate:
+      type: object
+      properties:
+        role:             { type: string, enum: [USER, ADMIN] }
+        isLocked:         { type: boolean }
+        balanceAdjustment: { type: number }
+        adjustmentNote:   { type: string }
+
+    AdminAnalytics:
+      type: object
+      required: [tvl, totalDeposits, totalWithdrawals, activeStakesCount, totalUsers, platformRevenue, dailyStats]
+      properties:
+        tvl:                 { type: number }
+        totalDeposits:       { type: number }
+        totalWithdrawals:    { type: number }
+        activeStakesCount:   { type: integer }
+        totalUsers:          { type: integer }
+        platformRevenue:     { type: number }
+        dailyStats:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyStat"
+
+    DailyStat:
+      type: object
+      required: [date, deposits, withdrawals, newStakes, interest]
+      properties:
+        date:        { type: string }
+        deposits:    { type: number }
+        withdrawals: { type: number }
+        newStakes:   { type: number }
+        interest:    { type: number }
+
+    AdminWithdrawal:
+      type: object
+      required: [id, userId, amount, status, phoneNumber, createdAt]
+      properties:
+        id:          { type: integer }
+        userId:      { type: integer }
+        userEmail:   { type: string }
+        userFullName: { type: ["string", "null"] }
+        amount:      { type: number }
+        status:      { type: string, enum: [PENDING, COMPLETED, FAILED, REJECTED] }
+        phoneNumber: { type: string }
+        payheroRef:  { type: ["string", "null"] }
+        createdAt:   { type: string, format: date-time }
+
+    RejectInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string }
+
+    AuditLog:
+      type: object
+      required: [id, adminId, adminEmail, action, createdAt]
+      properties:
+        id:          { type: integer }
+        adminId:     { type: integer }
+        adminEmail:  { type: string }
+        action:      { type: string }
+        targetUserId: { type: ["integer", "null"] }
+        note:        { type: ["string", "null"] }
+        metadata:    { type: ["string", "null"] }
+        createdAt:   { type: string, format: date-time }
+
+    PlatformSettings:
+      type: object
+      required: [payheroUsername, payheroPassword, payheroChannelId, tier1ReferralPercent, tier2ReferralPercent]
+      properties:
+        payheroUsername:      { type: string }
+        payheroPassword:      { type: string }
+        payheroChannelId:     { type: string }
+        tier1ReferralPercent: { type: number }
+        tier2ReferralPercent: { type: number }
+
+    PlatformSettingsUpdate:
+      type: object
+      properties:
+        payheroUsername:      { type: string }
+        payheroPassword:      { type: string }
+        payheroChannelId:     { type: string }
+        tier1ReferralPercent: { type: number }
+        tier2ReferralPercent: { type: number }
+
+    CronResult:
+      type: object
+      required: [processed, autoInvested, completed]
+      properties:
+        processed:    { type: integer }
+        autoInvested: { type: integer }
+        completed:    { type: integer }

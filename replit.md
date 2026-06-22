@@ -1,36 +1,57 @@
-# [Project name]
+# StakeKE — Kenyan Staking Platform
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A full-stack Kenyan investment/staking platform where users deposit via M-Pesa, stake in tiered plans, earn ROI, and refer others — all in KES.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `PORT=5173 BASE_PATH=/ pnpm --filter @workspace/staking-platform run dev` — frontend dev server
+- `pnpm --filter @workspace/api-server run dev` — API server (port 8080)
 - `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `pnpm --filter @workspace/scripts run seed` — seed staking plans and platform settings
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
+- Frontend: React + Vite, Tailwind CSS, shadcn/ui, Wouter routing, Clerk auth
+- API: Express 5 (port 8080 → `/api`)
 - DB: PostgreSQL + Drizzle ORM
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Auth: Clerk (`@clerk/react`, dev keys via `publishableKeyFromHost`)
+- Payments: PayHero Kenya (M-Pesa STK Push + B2C) — credentials stored in DB
+- Charts: Recharts
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `lib/db/src/schema/` — DB schema (users, staking-plans, stakes, transactions, referrals, notifications, audit-logs, platform-settings + relations)
+- `lib/api-spec/openapi.yaml` — OpenAPI source of truth
+- `lib/api-client-react/src/generated/` — generated React Query hooks
+- `lib/api-zod/src/generated/` — generated Zod schemas
+- `artifacts/api-server/src/routes/` — all route handlers
+- `artifacts/api-server/src/lib/payhero.ts` — PayHero M-Pesa integration
+- `artifacts/api-server/src/lib/auth.ts` — Clerk requireAuth/requireAdmin middleware
+- `artifacts/staking-platform/src/pages/` — all frontend pages
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- PayHero credentials (username, password, channel_id) stored in `platform_settings` DB table, not env vars — admin manages via `/admin/settings`
+- Clerk auth with JIT user provisioning in the API (`requireAuth` upserts users on first request)
+- All KES amounts stored as Postgres `numeric` type — converted with `Number()` in API responses
+- Referral system: 2-tier (5% tier-1, 2% tier-2) stored in `platform_settings`
+- Admin cron job runs hourly to mature stakes and process auto-invest/early-break
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Landing page with KES stats and M-Pesa branding
+- Multi-step Clerk onboarding (phone, referral code)
+- Dashboard: live balance, staking history, deposit/withdraw M-Pesa dialogs
+- Staking plans: 4 plans with ROI/duration/auto-invest/early-break options
+- Transactions page: full history with filters
+- Referrals page: 2-tier tree with earned commissions
+- Notifications: real-time updates for deposits, matured stakes, withdrawals
+- Admin panel at `/admin`: analytics (Recharts), user management, withdrawal approvals, PayHero settings, audit logs
 
 ## User preferences
 
@@ -38,7 +59,11 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The `restart_workflow` tool and `configureWorkflow` with `waitForPort` both fail for this project due to a Replit environment port-detection bug. Use `configureWorkflow` WITHOUT `waitForPort` to start the frontend — the workflow is named **"Staking Platform"** with command `PORT=5173 BASE_PATH=/ pnpm --filter @workspace/staking-platform run dev`.
+- The artifact-managed workflow "artifacts/staking-platform: web" will always show as FAILED — ignore it; use the "Staking Platform" workflow instead.
+- `pnpm --filter @workspace/scripts run seed` must be run with `@workspace/db` as a dependency in `scripts/package.json` (already done).
+- Numeric DB columns (roiPercent, minAmount, etc.) need `Number()` coercion when returning from API.
+- Clerk `@clerk/react/internal` exports `publishableKeyFromHost` as a subpath — do NOT add `"internal": "link:@clerk/react/internal"` to package.json (this was a bug that was fixed).
 
 ## Pointers
 

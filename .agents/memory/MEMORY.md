@@ -1,0 +1,2 @@
+- [Staking Platform workflow fix](staking-platform-workflow.md) — restart_workflow/configureWorkflow with waitForPort always fails; use configureWorkflow WITHOUT waitForPort.
+- [Clerk internal subpath](clerk-internal-subpath.md) — import publishableKeyFromHost from "@clerk/react/internal" directly; never add "internal": "link:..." to package.json.
