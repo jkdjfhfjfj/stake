@@ -1,8 +1,7 @@
-import { getAuth } from "@clerk/express";
+import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { nanoid } from "nanoid";
 
 declare global {
   namespace Express {
@@ -13,56 +12,52 @@ declare global {
   }
 }
 
-const DEV_CLERK_ID = "dev_local_user";
+const JWT_SECRET = process.env.JWT_SECRET ?? "stakeke-dev-secret-change-in-production";
 
-async function resolveUser(req: Request, res: Response, clerkId: string, email: string): Promise<boolean> {
-  let user = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkId, clerkId) });
-
-  if (!user) {
-    const referralCode = nanoid(8).toUpperCase();
-    const [created] = await db.insert(usersTable).values({
-      clerkId,
-      email,
-      referralCode,
-    }).returning();
-    user = created;
-  }
-
-  if (user.isLocked) {
-    res.status(403).json({ error: "Account locked" });
-    return false;
-  }
-
-  req.userId = user.id;
-  req.dbUser = user;
-  return true;
+export interface JwtPayload {
+  userId: number;
+  role: string;
 }
 
-const DEV_MODE = process.env.NODE_ENV === "development" && !process.env.CLERK_SECRET_KEY;
+export function signToken(payload: JwtPayload): string {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+}
+
+export function verifyToken(token: string): JwtPayload | null {
+  try {
+    return jwt.verify(token, JWT_SECRET) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
 
 export const requireAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  // Dev-mode: only accept dev-token; skip Clerk entirely (middleware not applied)
-  if (DEV_MODE) {
-    const authHeader = req.headers.authorization ?? "";
-    if (authHeader === "Bearer dev-token") {
-      const ok = await resolveUser(req, res, DEV_CLERK_ID, "dev@stakeke.local");
-      if (ok) next();
-      return;
-    }
-    res.status(401).json({ error: "Unauthorized — dev mode requires Bearer dev-token" });
-    return;
-  }
-
-  const auth = getAuth(req);
-  const clerkId = auth?.userId;
-  if (!clerkId) {
+  const header = req.headers.authorization ?? "";
+  if (!header.startsWith("Bearer ")) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
-  const email = (auth as any)?.sessionClaims?.email as string | undefined ?? `${clerkId}@unknown.com`;
-  const ok = await resolveUser(req, res, clerkId, email);
-  if (ok) next();
+  const token = header.slice(7);
+  const payload = verifyToken(token);
+  if (!payload) {
+    res.status(401).json({ error: "Invalid or expired token" });
+    return;
+  }
+
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, payload.userId) });
+  if (!user) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+  if (user.isLocked) {
+    res.status(403).json({ error: "Account locked" });
+    return;
+  }
+
+  req.userId = user.id;
+  req.dbUser = user;
+  next();
 };
 
 export const requireAdmin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {

@@ -1,5 +1,4 @@
 import { Link, useLocation } from "wouter";
-import { SignOutButton } from "@clerk/react";
 import {
   LayoutDashboard, TrendingUp, ArrowLeftRight, Users,
   Bell, LogOut, TrendingUpIcon, Menu, X
@@ -7,7 +6,9 @@ import {
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useListNotifications } from "@workspace/api-client-react";
-import { useAppUser, useDevMode } from "@/lib/auth-context";
+import { useAppAuth } from "@/lib/auth-context";
+import { queryClient } from "@/lib/queryClient";
+import { useLocation as useWouterLocation } from "wouter";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -19,11 +20,17 @@ const navItems = [
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const user = useAppUser();
-  const devMode = useDevMode();
+  const [, navigate] = useWouterLocation();
+  const { user, logout } = useAppAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { data: notifications } = useListNotifications();
   const unreadCount = notifications?.filter((n) => !n.isRead).length ?? 0;
+
+  const handleLogout = () => {
+    logout();
+    queryClient.clear();
+    navigate("/login");
+  };
 
   return (
     <div className="min-h-screen bg-[#0a0f0d] flex">
@@ -66,23 +73,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="p-4 border-t border-green-900/20 space-y-1">
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-400">
             <div className="w-6 h-6 rounded-full bg-green-800 flex items-center justify-center text-xs text-green-300">
-              {user.firstName?.[0] ?? "U"}
+              {user?.fullName?.[0] ?? user?.email?.[0]?.toUpperCase() ?? "U"}
             </div>
-            <span className="truncate text-white text-xs">{user.email}</span>
+            <span className="truncate text-white text-xs">{user?.email}</span>
           </div>
-          {devMode ? (
-            <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs text-yellow-600">
-              <LogOut className="w-4 h-4" />
-              <span>Dev Mode</span>
-            </div>
-          ) : (
-            <SignOutButton>
-              <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:text-red-400 hover:bg-red-900/20 cursor-pointer">
-                <LogOut className="w-4 h-4" />
-                <span>Sign Out</span>
-              </button>
-            </SignOutButton>
-          )}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:text-red-400 hover:bg-red-900/20 cursor-pointer"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sign Out</span>
+          </button>
         </div>
       </aside>
 

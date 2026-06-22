@@ -530,10 +530,9 @@ components:
     # ── User ──────────────────────────────────────────────────────────────
     User:
       type: object
-      required: [id, clerkId, email, role, availableBalance, totalEarnings, referralRewards, referralCode, onboardingComplete, isLocked, createdAt]
+      required: [id, email, role, availableBalance, totalEarnings, referralRewards, referralCode, onboardingComplete, isLocked, createdAt]
       properties:
         id:             { type: integer }
-        clerkId:        { type: string }
         email:          { type: string }
         fullName:       { type: ["string", "null"] }
         location:       { type: ["string", "null"] }
@@ -730,10 +729,9 @@ components:
     # ── Admin ──────────────────────────────────────────────────────────────
     AdminUser:
       type: object
-      required: [id, clerkId, email, role, availableBalance, totalEarnings, referralRewards, isLocked, onboardingComplete, createdAt]
+      required: [id, email, role, availableBalance, totalEarnings, referralRewards, isLocked, onboardingComplete, createdAt]
       properties:
         id:               { type: integer }
-        clerkId:          { type: string }
         email:            { type: string }
         fullName:         { type: ["string", "null"] }
         location:         { type: ["string", "null"] }

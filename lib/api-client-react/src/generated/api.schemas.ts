@@ -19,7 +19,6 @@ export const UserRole = {
 
 export interface User {
   id: number;
-  clerkId: string;
   email: string;
   /** @nullable */
   fullName?: string | null;
@@ -234,7 +233,6 @@ export const AdminUserRole = {
 
 export interface AdminUser {
   id: number;
-  clerkId: string;
   email: string;
   /** @nullable */
   fullName?: string | null;

@@ -1,50 +1,57 @@
-import { createContext, useContext } from "react";
-import { useUser } from "@clerk/react";
-
-export interface AppUser {
-  firstName: string | null;
-  email: string;
-}
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { getToken, clearToken, apiMe, type AuthUser } from "./auth";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 interface AuthCtx {
-  user: AppUser;
-  devMode: boolean;
+  user: AuthUser | null;
+  loading: boolean;
+  refresh: () => Promise<void>;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthCtx>({
-  user: { firstName: "Dev", email: "dev@stakeke.local" },
-  devMode: false,
+  user: null,
+  loading: true,
+  refresh: async () => {},
+  logout: () => {},
 });
 
-export function DevAuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    const me = await apiMe();
+    setUser(me);
+  }, []);
+
+  const logout = useCallback(() => {
+    clearToken();
+    setUser(null);
+    setAuthTokenGetter(null);
+  }, []);
+
+  useEffect(() => {
+    // Wire up the API client to use our JWT token
+    setAuthTokenGetter(() => Promise.resolve(getToken() ?? ""));
+
+    apiMe().then((me) => {
+      setUser(me);
+      setLoading(false);
+    });
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user: { firstName: "Dev", email: "dev@stakeke.local" }, devMode: true }}>
+    <AuthContext.Provider value={{ user, loading, refresh, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-function ClerkUserBridge({ children }: { children: React.ReactNode }) {
-  const { user } = useUser();
-  const appUser: AppUser = {
-    firstName: user?.firstName ?? null,
-    email: user?.emailAddresses[0]?.emailAddress ?? "",
-  };
-  return (
-    <AuthContext.Provider value={{ user: appUser, devMode: false }}>
-      {children}
-    </AuthContext.Provider>
-  );
+export function useAppAuth(): AuthCtx {
+  return useContext(AuthContext);
 }
 
-export function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
-  return <ClerkUserBridge>{children}</ClerkUserBridge>;
-}
-
-export function useAppUser(): AppUser {
+export function useAppUser(): AuthUser | null {
   return useContext(AuthContext).user;
-}
-
-export function useDevMode(): boolean {
-  return useContext(AuthContext).devMode;
 }

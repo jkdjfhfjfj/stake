@@ -1,16 +1,13 @@
-import { useEffect } from "react";
 import { Switch, Route, Redirect, Router as WouterRouter } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { ClerkProvider, SignIn, SignUp, Show, useAuth } from "@clerk/react";
-import { publishableKeyFromHost } from "@clerk/react/internal";
-import { dark } from "@clerk/themes";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
-import { DevAuthProvider, ClerkAuthProvider } from "@/lib/auth-context";
+import { AuthProvider, useAppAuth } from "@/lib/auth-context";
 
 import LandingPage from "@/pages/landing";
+import LoginPage from "@/pages/login";
+import RegisterPage from "@/pages/register";
 import OnboardingPage from "@/pages/onboarding";
 import DashboardPage from "@/pages/dashboard";
 import StakingPlansPage from "@/pages/staking-plans";
@@ -20,208 +17,77 @@ import NotificationsPage from "@/pages/notifications";
 import AdminPage from "@/pages/admin/index";
 import NotFound from "@/pages/not-found";
 
-const _hostname = window.location.hostname;
-const _isLocalhost = _hostname === "localhost" || _hostname === "127.0.0.1";
-const clerkPubKey = _isLocalhost
-  ? (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ?? "")
-  : publishableKeyFromHost(_hostname, import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
-
-const DEV_MODE = !clerkPubKey;
-
-// Set dev token synchronously before any React renders so first API calls are authenticated
-if (DEV_MODE) {
-  setAuthTokenGetter(() => Promise.resolve("dev-token"));
+function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+  const { user, loading } = useAppAuth();
+  if (loading) return <div className="min-h-screen bg-[#0a0f0d] flex items-center justify-center"><div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (!user) return <Redirect to="/login" />;
+  return <Component />;
 }
 
-const appearance = {
-  baseTheme: dark,
-  variables: {
-    colorPrimary: "#16a34a",
-    colorBackground: "#0a0f0d",
-    colorInputBackground: "#111a14",
-    colorText: "#e5f0e8",
-    borderRadius: "0.75rem",
-    fontFamily: "Inter, sans-serif",
-  },
-  elements: {
-    card: "shadow-xl border border-green-900/40",
-    formButtonPrimary: "bg-green-600 hover:bg-green-500",
-  },
-};
+function AdminRoute({ component: Component }: { component: React.ComponentType }) {
+  const { user, loading } = useAppAuth();
+  if (loading) return <div className="min-h-screen bg-[#0a0f0d] flex items-center justify-center"><div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (!user) return <Redirect to="/admin-login" />;
+  if (user.role !== "ADMIN") return <Redirect to="/dashboard" />;
+  return <Component />;
+}
 
-// ── Dev mode (no Clerk key) ────────────────────────────────────────────────
+function HomeRedirect() {
+  const { user, loading } = useAppAuth();
+  if (loading) return <div className="min-h-screen bg-[#0a0f0d]" />;
+  return user ? <Redirect to="/dashboard" /> : <LandingPage />;
+}
 
-function DevRouterInner() {
+function AdminLoginPage() {
+  const { user, loading } = useAppAuth();
+  if (loading) return <div className="min-h-screen bg-[#0a0f0d]" />;
+  if (user?.role === "ADMIN") return <Redirect to="/admin" />;
+
+  return (
+    <div className="min-h-screen bg-[#070d09] flex flex-col items-center justify-center gap-2">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 rounded-lg bg-green-700 flex items-center justify-center">
+          <span className="text-white text-xs font-bold">A</span>
+        </div>
+        <span className="text-green-400 font-bold text-lg">StakeKE Admin</span>
+      </div>
+      <LoginPage />
+      <p className="text-xs text-gray-600 -mt-4">Admin access only. Unauthorised access is prohibited.</p>
+    </div>
+  );
+}
+
+function Router() {
   return (
     <Switch>
-      <Route path="/" component={() => <Redirect to="/dashboard" />} />
-      <Route path="/sign-in" component={() => <Redirect to="/dashboard" />} />
-      <Route path="/sign-up" component={() => <Redirect to="/dashboard" />} />
-      <Route path="/admin-login" component={() => <Redirect to="/admin" />} />
-      <Route path="/onboarding" component={OnboardingPage} />
-      <Route path="/dashboard" component={DashboardPage} />
-      <Route path="/staking" component={StakingPlansPage} />
-      <Route path="/transactions" component={TransactionsPage} />
-      <Route path="/referrals" component={ReferralsPage} />
-      <Route path="/notifications" component={NotificationsPage} />
-      <Route path="/admin" component={AdminPage} />
+      <Route path="/" component={HomeRedirect} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/register" component={RegisterPage} />
+      <Route path="/admin-login" component={AdminLoginPage} />
+      <Route path="/onboarding" component={() => <ProtectedRoute component={OnboardingPage} />} />
+      <Route path="/dashboard" component={() => <ProtectedRoute component={DashboardPage} />} />
+      <Route path="/staking" component={() => <ProtectedRoute component={StakingPlansPage} />} />
+      <Route path="/transactions" component={() => <ProtectedRoute component={TransactionsPage} />} />
+      <Route path="/referrals" component={() => <ProtectedRoute component={ReferralsPage} />} />
+      <Route path="/notifications" component={() => <ProtectedRoute component={NotificationsPage} />} />
+      <Route path="/admin" component={() => <AdminRoute component={AdminPage} />} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-function DevRouter() {
-  return (
-    <DevAuthProvider>
-      <DevRouterInner />
-    </DevAuthProvider>
-  );
-}
-
-// ── Clerk mode (real key available) ───────────────────────────────────────
-
-function ClerkTokenSync() {
-  const { getToken } = useAuth();
-  useEffect(() => {
-    setAuthTokenGetter(() => getToken());
-    return () => { setAuthTokenGetter(null); };
-  }, [getToken]);
-  return null;
-}
-
-function HomeRedirect() {
-  return (
-    <>
-      <Show when="signed-in">
-        <Redirect to="/dashboard" />
-      </Show>
-      <Show when="signed-out">
-        <LandingPage />
-      </Show>
-    </>
-  );
-}
-
-function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
-  return (
-    <>
-      <Show when="signed-in">
-        <Component />
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/" />
-      </Show>
-    </>
-  );
-}
-
-function AdminProtectedRoute({ component: Component }: { component: React.ComponentType }) {
-  return (
-    <>
-      <Show when="signed-in">
-        <Component />
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/admin-login" />
-      </Show>
-    </>
-  );
-}
-
-function AdminLoginPage() {
-  return (
-    <>
-      <Show when="signed-in">
-        <Redirect to="/admin" />
-      </Show>
-      <Show when="signed-out">
-        <div className="min-h-screen flex flex-col items-center justify-center bg-[#070d09] gap-6">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-green-700 flex items-center justify-center">
-              <span className="text-white text-xs font-bold">A</span>
-            </div>
-            <span className="text-green-400 font-bold text-lg">StakeKE Admin</span>
-          </div>
-          <SignIn
-            routing="hash"
-            appearance={appearance}
-            fallbackRedirectUrl="/admin"
-            signUpUrl={undefined}
-          />
-          <p className="text-xs text-gray-600">Admin access only. Unauthorised access is prohibited.</p>
-        </div>
-      </Show>
-    </>
-  );
-}
-
-function ClerkRouter() {
-  return (
-    <ClerkAuthProvider>
-      <ClerkTokenSync />
-      <Switch>
-        <Route path="/" component={HomeRedirect} />
-        <Route path="/sign-in" component={() => (
-          <div className="min-h-screen flex items-center justify-center bg-[#0a0f0d]">
-            <SignIn routing="path" path="/sign-in" appearance={appearance} fallbackRedirectUrl="/dashboard" />
-          </div>
-        )} />
-        <Route path="/sign-up" component={() => (
-          <div className="min-h-screen flex items-center justify-center bg-[#0a0f0d]">
-            <SignUp routing="path" path="/sign-up" appearance={appearance} fallbackRedirectUrl="/onboarding" />
-          </div>
-        )} />
-        <Route path="/admin-login" component={AdminLoginPage} />
-        <Route path="/onboarding" component={() => <ProtectedRoute component={OnboardingPage} />} />
-        <Route path="/dashboard" component={() => <ProtectedRoute component={DashboardPage} />} />
-        <Route path="/staking" component={() => <ProtectedRoute component={StakingPlansPage} />} />
-        <Route path="/transactions" component={() => <ProtectedRoute component={TransactionsPage} />} />
-        <Route path="/referrals" component={() => <ProtectedRoute component={ReferralsPage} />} />
-        <Route path="/notifications" component={() => <ProtectedRoute component={NotificationsPage} />} />
-        <Route path="/admin" component={() => <AdminProtectedRoute component={AdminPage} />} />
-        <Route component={NotFound} />
-      </Switch>
-    </ClerkAuthProvider>
-  );
-}
-
-// ── Root ──────────────────────────────────────────────────────────────────
-
 function App() {
-  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-  if (DEV_MODE) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <WouterRouter base={base}>
-            <DevRouter />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
-    );
-  }
-
   return (
-    <ClerkProvider
-      publishableKey={clerkPubKey}
-      proxyUrl={clerkProxyUrl}
-      appearance={appearance}
-      signInUrl="/sign-in"
-      signUpUrl="/sign-up"
-      afterSignOutUrl="/"
-    >
+    <AuthProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <WouterRouter base={base}>
-            <ClerkRouter />
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
           </WouterRouter>
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
-    </ClerkProvider>
+    </AuthProvider>
   );
 }
 

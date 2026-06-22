@@ -21,7 +21,6 @@ export const HealthCheckResponse = zod.object({
  */
 export const GetMeResponse = zod.object({
   "id": zod.number(),
-  "clerkId": zod.string(),
   "email": zod.string(),
   "fullName": zod.string().nullish(),
   "location": zod.string().nullish(),
@@ -48,7 +47,6 @@ export const UpdateMeBody = zod.object({
 
 export const UpdateMeResponse = zod.object({
   "id": zod.number(),
-  "clerkId": zod.string(),
   "email": zod.string(),
   "fullName": zod.string().nullish(),
   "location": zod.string().nullish(),
@@ -75,7 +73,6 @@ export const CompleteOnboardingBody = zod.object({
 
 export const CompleteOnboardingResponse = zod.object({
   "id": zod.number(),
-  "clerkId": zod.string(),
   "email": zod.string(),
   "fullName": zod.string().nullish(),
   "location": zod.string().nullish(),
@@ -368,7 +365,6 @@ export const MarkNotificationReadResponse = zod.object({
  */
 export const AdminListUsersResponseItem = zod.object({
   "id": zod.number(),
-  "clerkId": zod.string(),
   "email": zod.string(),
   "fullName": zod.string().nullish(),
   "location": zod.string().nullish(),
@@ -401,7 +397,6 @@ export const AdminUpdateUserBody = zod.object({
 
 export const AdminUpdateUserResponse = zod.object({
   "id": zod.number(),
-  "clerkId": zod.string(),
   "email": zod.string(),
   "fullName": zod.string().nullish(),
   "location": zod.string().nullish(),

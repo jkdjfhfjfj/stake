@@ -1,3 +1,2 @@
 - [Staking Platform workflow fix](staking-platform-workflow.md) — restart_workflow/configureWorkflow with waitForPort always fails; use configureWorkflow WITHOUT waitForPort.
-- [Clerk internal subpath](clerk-internal-subpath.md) — import publishableKeyFromHost from "@clerk/react/internal" directly; never add "internal": "link:..." to package.json.
-- [Clerk dev-mode bypass](clerk-dev-mode.md) — publishableKeyFromHost fails for *.janeway.replit.dev domains; full dev bypass pattern implemented.
+- [Auth: email/password + JWT](auth-jwt.md) — Clerk fully removed; custom JWT auth with bcryptjs + jsonwebtoken. Covers DB, API, and frontend patterns.

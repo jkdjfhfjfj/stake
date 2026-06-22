@@ -19,7 +19,7 @@ A full-stack Kenyan investment/staking platform where users deposit via M-Pesa, 
 - DB: PostgreSQL + Drizzle ORM
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
-- Auth: Clerk (`@clerk/react`, dev keys via `publishableKeyFromHost`)
+- Auth: custom email/password + JWT (`bcryptjs` hash, `jsonwebtoken` HS256 7d, token in `localStorage`)
 - Payments: PayHero Kenya (M-Pesa STK Push + B2C) — credentials stored in DB
 - Charts: Recharts
 
