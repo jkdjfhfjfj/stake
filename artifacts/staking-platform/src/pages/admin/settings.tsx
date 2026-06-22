@@ -39,7 +39,7 @@ export default function AdminSettings() {
         queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
       },
       onError: (e: any) => {
-        toast({ title: "Error saving", description: e?.response?.data?.error ?? "Try again", variant: "destructive" });
+        toast({ title: "Error saving", description: e?.data?.error ?? e?.message ?? "Try again", variant: "destructive" });
       },
     },
   });

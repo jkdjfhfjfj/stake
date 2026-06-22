@@ -33,7 +33,7 @@ function StakePlanCard({ plan, availableBalance }: { plan: any; availableBalance
         setAmount("");
       },
       onError: (e: any) => {
-        toast({ title: "Stake failed", description: e?.response?.data?.error ?? "Try again", variant: "destructive" });
+        toast({ title: "Stake failed", description: e?.data?.error ?? e?.message ?? "Try again", variant: "destructive" });
       },
     },
   });
@@ -137,7 +137,7 @@ function ActiveStakeCard({ stake }: { stake: any }) {
         queryClient.invalidateQueries({ queryKey: ["/api/users/me/dashboard"] });
       },
       onError: (e: any) => {
-        toast({ title: "Error", description: e?.response?.data?.error ?? "Try again", variant: "destructive" });
+        toast({ title: "Error", description: e?.data?.error ?? e?.message ?? "Try again", variant: "destructive" });
       },
     },
   });

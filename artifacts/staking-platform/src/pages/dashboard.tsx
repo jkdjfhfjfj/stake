@@ -31,7 +31,7 @@ function DepositDialog({ mpesaNumber }: { mpesaNumber?: string | null }) {
         setAmount("");
       },
       onError: (e: any) => {
-        toast({ title: "Deposit failed", description: e?.response?.data?.error ?? "Try again", variant: "destructive" });
+        toast({ title: "Deposit failed", description: e?.data?.error ?? e?.message ?? "Try again", variant: "destructive" });
       },
     },
   });
@@ -84,7 +84,7 @@ function WithdrawDialog({ mpesaNumber, maxAmount }: { mpesaNumber?: string | nul
         setAmount("");
       },
       onError: (e: any) => {
-        toast({ title: "Withdrawal failed", description: e?.response?.data?.error ?? "Try again", variant: "destructive" });
+        toast({ title: "Withdrawal failed", description: e?.data?.error ?? e?.message ?? "Try again", variant: "destructive" });
       },
     },
   });

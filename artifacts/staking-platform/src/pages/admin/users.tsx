@@ -30,7 +30,7 @@ function EditUserDialog({ user }: { user: any }) {
         setOpen(false);
       },
       onError: (e: any) => {
-        toast({ title: "Error", description: e?.response?.data?.error ?? "Try again", variant: "destructive" });
+        toast({ title: "Error", description: e?.data?.error ?? e?.message ?? "Try again", variant: "destructive" });
       },
     },
   });

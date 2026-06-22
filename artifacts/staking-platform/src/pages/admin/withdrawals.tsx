@@ -32,7 +32,7 @@ export default function AdminWithdrawals() {
         queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals"] });
       },
       onError: (e: any) => {
-        toast({ title: "Disburse failed", description: e?.response?.data?.error ?? "Check PayHero settings", variant: "destructive" });
+        toast({ title: "Disburse failed", description: e?.data?.error ?? e?.message ?? "Check PayHero settings", variant: "destructive" });
       },
     },
   });
@@ -44,7 +44,7 @@ export default function AdminWithdrawals() {
         queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals"] });
       },
       onError: (e: any) => {
-        toast({ title: "Error", description: e?.response?.data?.error ?? "Try again", variant: "destructive" });
+        toast({ title: "Error", description: e?.data?.error ?? e?.message ?? "Try again", variant: "destructive" });
       },
     },
   });

@@ -62,12 +62,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="p-4 border-t border-green-900/20 space-y-1">
-          <Link href="/admin">
-            <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:text-white hover:bg-green-900/30 cursor-pointer">
-              <ShieldCheck className="w-4 h-4" />
-              <span>Admin Panel</span>
-            </div>
-          </Link>
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-400">
             <div className="w-6 h-6 rounded-full bg-green-800 flex items-center justify-center text-xs text-green-300">
               {user?.firstName?.[0] ?? "U"}

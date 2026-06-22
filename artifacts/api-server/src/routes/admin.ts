@@ -2,7 +2,7 @@ import { Router } from "express";
 import { eq, sql, desc, and, inArray } from "drizzle-orm";
 import {
   db, usersTable, stakesTable, transactionsTable,
-  auditLogsTable, platformSettingsTable, notificationsTable,
+  auditLogsTable, platformSettingsTable, notificationsTable, referralsTable,
 } from "@workspace/db";
 import { requireAdmin } from "../lib/auth";
 import { disburseB2C } from "../lib/payhero";
@@ -473,6 +473,41 @@ router.post("/admin/cron/process-stakes", requireAdmin, async (_req, res): Promi
   }
 
   res.json(ProcessMaturedStakesResponse.parse({ processed: matured.length, autoInvested, completed }));
+});
+
+// ── Referrals ──────────────────────────────────────────────────────────────
+router.get("/admin/referrals", requireAdmin, async (_req, res): Promise<void> => {
+  const referrals = await db
+    .select({
+      id: referralsTable.id,
+      tier: referralsTable.tier,
+      rewardAmount: referralsTable.rewardAmount,
+      paidAt: referralsTable.paidAt,
+      createdAt: referralsTable.createdAt,
+      referrerId: referralsTable.referrerId,
+      refereeId: referralsTable.refereeId,
+    })
+    .from(referralsTable)
+    .orderBy(desc(referralsTable.createdAt))
+    .limit(500);
+
+  const allIds = [...new Set([...referrals.map((r) => r.referrerId), ...referrals.map((r) => r.refereeId)])];
+  const users = allIds.length > 0
+    ? await db.select({ id: usersTable.id, email: usersTable.email, fullName: usersTable.fullName })
+        .from(usersTable)
+        .where(inArray(usersTable.id, allIds))
+    : [];
+  const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+
+  res.json(referrals.map((r) => ({
+    id: r.id,
+    tier: r.tier,
+    rewardAmount: Number(r.rewardAmount),
+    paidAt: r.paidAt,
+    createdAt: r.createdAt,
+    referrer: userMap[r.referrerId] ?? { id: r.referrerId, email: "Unknown", fullName: null },
+    referee: userMap[r.refereeId] ?? { id: r.refereeId, email: "Unknown", fullName: null },
+  })));
 });
 
 export default router;
