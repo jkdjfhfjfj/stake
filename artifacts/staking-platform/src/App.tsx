@@ -8,6 +8,7 @@ import { dark } from "@clerk/themes";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { DevAuthProvider, ClerkAuthProvider } from "@/lib/auth-context";
 
 import LandingPage from "@/pages/landing";
 import OnboardingPage from "@/pages/onboarding";
@@ -26,6 +27,13 @@ const clerkPubKey = _isLocalhost
   : publishableKeyFromHost(_hostname, import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 
+const DEV_MODE = !clerkPubKey;
+
+// Set dev token synchronously before any React renders so first API calls are authenticated
+if (DEV_MODE) {
+  setAuthTokenGetter(() => Promise.resolve("dev-token"));
+}
+
 const appearance = {
   baseTheme: dark,
   variables: {
@@ -41,6 +49,37 @@ const appearance = {
     formButtonPrimary: "bg-green-600 hover:bg-green-500",
   },
 };
+
+// ── Dev mode (no Clerk key) ────────────────────────────────────────────────
+
+function DevRouterInner() {
+  return (
+    <Switch>
+      <Route path="/" component={() => <Redirect to="/dashboard" />} />
+      <Route path="/sign-in" component={() => <Redirect to="/dashboard" />} />
+      <Route path="/sign-up" component={() => <Redirect to="/dashboard" />} />
+      <Route path="/admin-login" component={() => <Redirect to="/admin" />} />
+      <Route path="/onboarding" component={OnboardingPage} />
+      <Route path="/dashboard" component={DashboardPage} />
+      <Route path="/staking" component={StakingPlansPage} />
+      <Route path="/transactions" component={TransactionsPage} />
+      <Route path="/referrals" component={ReferralsPage} />
+      <Route path="/notifications" component={NotificationsPage} />
+      <Route path="/admin" component={AdminPage} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function DevRouter() {
+  return (
+    <DevAuthProvider>
+      <DevRouterInner />
+    </DevAuthProvider>
+  );
+}
+
+// ── Clerk mode (real key available) ───────────────────────────────────────
 
 function ClerkTokenSync() {
   const { getToken } = useAuth();
@@ -117,9 +156,9 @@ function AdminLoginPage() {
   );
 }
 
-function Router() {
+function ClerkRouter() {
   return (
-    <>
+    <ClerkAuthProvider>
       <ClerkTokenSync />
       <Switch>
         <Route path="/" component={HomeRedirect} />
@@ -143,14 +182,31 @@ function Router() {
         <Route path="/admin" component={() => <AdminProtectedRoute component={AdminPage} />} />
         <Route component={NotFound} />
       </Switch>
-    </>
+    </ClerkAuthProvider>
   );
 }
 
+// ── Root ──────────────────────────────────────────────────────────────────
+
 function App() {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  if (DEV_MODE) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <WouterRouter base={base}>
+            <DevRouter />
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+
   return (
     <ClerkProvider
-      publishableKey={clerkPubKey ?? ""}
+      publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
       appearance={appearance}
       signInUrl="/sign-in"
@@ -159,8 +215,8 @@ function App() {
     >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
+          <WouterRouter base={base}>
+            <ClerkRouter />
           </WouterRouter>
           <Toaster />
         </TooltipProvider>
