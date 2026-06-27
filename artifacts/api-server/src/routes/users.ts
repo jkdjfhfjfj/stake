@@ -40,6 +40,31 @@ router.patch("/users/me", requireAuth, async (req, res): Promise<void> => {
   }));
 });
 
+router.post("/users/me/change-password", requireAuth, async (req, res): Promise<void> => {
+  const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ error: "currentPassword and newPassword are required" });
+    return;
+  }
+  if (newPassword.length < 8) {
+    res.status(400).json({ error: "New password must be at least 8 characters" });
+    return;
+  }
+  const user = req.dbUser!;
+  if (!user.passwordHash) {
+    res.status(400).json({ error: "No password set on this account" });
+    return;
+  }
+  const valid = await (await import("bcryptjs")).default.compare(currentPassword, user.passwordHash);
+  if (!valid) {
+    res.status(401).json({ error: "Current password is incorrect" });
+    return;
+  }
+  const newHash = await (await import("bcryptjs")).default.hash(newPassword, 10);
+  await db.update(usersTable).set({ passwordHash: newHash }).where(eq(usersTable.id, req.userId!));
+  res.json({ ok: true });
+});
+
 router.post("/users/me/onboarding", requireAuth, async (req, res): Promise<void> => {
   const parsed = CompleteOnboardingBody.safeParse(req.body);
   if (!parsed.success) {

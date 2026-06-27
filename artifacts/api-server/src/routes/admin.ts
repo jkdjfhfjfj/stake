@@ -29,6 +29,19 @@ import {
 
 const router = Router();
 
+// ── Staking Plans (Admin — all including inactive) ─────────────────────────
+router.get("/admin/staking-plans", requireAdmin, async (_req, res): Promise<void> => {
+  const { stakingPlansTable } = await import("@workspace/db");
+  const plans = await db.select().from(stakingPlansTable).orderBy(stakingPlansTable.id);
+  res.json(plans.map((p) => ({
+    ...p,
+    roiPercent: Number(p.roiPercent),
+    minAmount: Number(p.minAmount),
+    maxAmount: Number(p.maxAmount),
+    earlyWithdrawalPenalty: Number(p.earlyWithdrawalPenalty),
+  })));
+});
+
 // ── Users ──────────────────────────────────────────────────────────────────
 router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
   const users = await db.query.usersTable.findMany({

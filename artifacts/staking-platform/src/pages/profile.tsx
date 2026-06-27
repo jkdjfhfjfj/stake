@@ -1,0 +1,321 @@
+import { useState, useEffect } from "react";
+import AppLayout from "@/components/layout/AppLayout";
+import { useGetMe } from "@workspace/api-client-react";
+import { queryClient } from "@/lib/queryClient";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  User, Mail, Phone, Shield, Save, KeyRound, Eye, EyeOff,
+  CheckCircle, AlertCircle, TrendingUp, Wallet, Calendar, Copy
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { getToken } from "@/lib/auth";
+import { useAppAuth } from "@/lib/auth-context";
+
+function authedFetch(url: string, opts: RequestInit = {}) {
+  const token = getToken();
+  return fetch(url, {
+    ...opts,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(opts.headers ?? {}),
+    },
+  });
+}
+
+function formatKES(n: number) {
+  return `KES ${n.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
+}
+
+export default function ProfilePage() {
+  const { data: me, isLoading } = useGetMe();
+  const { toast } = useToast();
+  const { user } = useAppAuth();
+
+  const [profileForm, setProfileForm] = useState({ fullName: "", mpesaNumber: "" });
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
+
+  useEffect(() => {
+    if (me) {
+      setProfileForm({
+        fullName: me.fullName ?? "",
+        mpesaNumber: me.mpesaNumber ?? "",
+      });
+    }
+  }, [me]);
+
+  const saveProfile = async () => {
+    setProfileSaving(true);
+    try {
+      const res = await authedFetch("/api/users/me", {
+        method: "PATCH",
+        body: JSON.stringify(profileForm),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      toast({ title: "Profile updated!" });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/me"] });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const changePassword = async () => {
+    if (pwForm.newPassword !== pwForm.confirmPassword) {
+      toast({ title: "Passwords don't match", variant: "destructive" });
+      return;
+    }
+    if (pwForm.newPassword.length < 8) {
+      toast({ title: "Password too short", description: "At least 8 characters required", variant: "destructive" });
+      return;
+    }
+    setPwSaving(true);
+    try {
+      const res = await authedFetch("/api/users/me/change-password", {
+        method: "POST",
+        body: JSON.stringify({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      toast({ title: "Password changed successfully!" });
+      setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setPwSaving(false);
+    }
+  };
+
+  const copyReferralCode = async () => {
+    if (me?.referralCode) {
+      await navigator.clipboard.writeText(me.referralCode).catch(() => {});
+      toast({ title: "Referral code copied!" });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-40">
+          <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const initials = me?.fullName
+    ? me.fullName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
+    : me?.email?.[0]?.toUpperCase() ?? "U";
+
+  const pwStrength = pwForm.newPassword.length >= 12 ? "Strong" : pwForm.newPassword.length >= 8 ? "Good" : pwForm.newPassword.length > 0 ? "Weak" : "";
+  const pwStrengthColor = pwStrength === "Strong" ? "text-green-400" : pwStrength === "Good" ? "text-yellow-400" : "text-red-400";
+
+  return (
+    <AppLayout>
+      <div className="space-y-6 max-w-2xl">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Profile & Settings</h1>
+          <p className="text-gray-400 text-sm mt-1">Manage your account information and security</p>
+        </div>
+
+        {/* Profile Overview */}
+        <Card className="bg-[#0d1a10] border-green-900/30">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-green-700 flex items-center justify-center text-white text-2xl font-black">
+                {initials}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-xl font-bold text-white">{me?.fullName ?? "User"}</p>
+                  {me?.role === "ADMIN" && (
+                    <Badge className="bg-amber-900/40 text-amber-400 border-amber-700/40 text-xs">Admin</Badge>
+                  )}
+                </div>
+                <p className="text-sm text-gray-400">{me?.email}</p>
+                <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <Wallet className="w-3 h-3 text-green-400" />
+                    <span className="text-green-400 font-medium">{formatKES(me?.availableBalance ?? 0)}</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    Joined {me?.createdAt ? new Date(me.createdAt).toLocaleDateString("en-KE") : "—"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Edit Profile */}
+        <Card className="bg-[#0d1a10] border-green-900/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base text-white flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-green-900/30 flex items-center justify-center">
+                <User className="w-3.5 h-3.5 text-green-400" />
+              </div>
+              Personal Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label className="text-gray-300 text-xs">Email Address</Label>
+              <div className="mt-1 flex items-center gap-2">
+                <div className="flex-1 bg-[#0a0f0d] border border-green-900/20 rounded-xl px-3 py-2 text-sm text-gray-400 flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-gray-600" />
+                  {me?.email}
+                </div>
+                <Badge className="bg-green-900/30 text-green-400 border-green-700/30 text-xs shrink-0">Verified</Badge>
+              </div>
+            </div>
+            <div>
+              <Label className="text-gray-300 text-xs">Full Name</Label>
+              <div className="relative mt-1">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <Input
+                  value={profileForm.fullName}
+                  onChange={(e) => setProfileForm(p => ({ ...p, fullName: e.target.value }))}
+                  placeholder="Your full name"
+                  className="pl-9 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-gray-300 text-xs">M-Pesa Phone Number</Label>
+              <div className="relative mt-1">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <Input
+                  value={profileForm.mpesaNumber}
+                  onChange={(e) => setProfileForm(p => ({ ...p, mpesaNumber: e.target.value }))}
+                  placeholder="e.g. 0712345678"
+                  className="pl-9 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Used for deposits and withdrawals</p>
+            </div>
+            <Button
+              className="bg-green-600 hover:bg-green-500 gap-2 w-full sm:w-auto"
+              disabled={profileSaving}
+              onClick={saveProfile}
+            >
+              <Save className="w-4 h-4" />
+              {profileSaving ? "Saving..." : "Save Profile"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Referral Code */}
+        {me?.referralCode && (
+          <Card className="bg-[#0d1a10] border-green-900/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base text-white flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-purple-900/30 flex items-center justify-center">
+                  <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
+                </div>
+                Referral Code
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 bg-[#0a0f0d] border border-green-900/30 rounded-xl px-4 py-2.5 font-mono text-lg font-bold text-green-400 tracking-widest">
+                  {me.referralCode}
+                </div>
+                <Button variant="outline" className="border-green-700/50 text-green-300 hover:bg-green-900/30 gap-2 shrink-0" onClick={copyReferralCode}>
+                  <Copy className="w-4 h-4" /> Copy
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">Share this code or your referral link to earn rewards</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Change Password */}
+        <Card className="bg-[#0d1a10] border-green-900/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base text-white flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-blue-900/30 flex items-center justify-center">
+                <KeyRound className="w-3.5 h-3.5 text-blue-400" />
+              </div>
+              Change Password
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label className="text-gray-300 text-xs">Current Password</Label>
+              <div className="relative mt-1">
+                <Input
+                  type={showCurrent ? "text" : "password"}
+                  value={pwForm.currentPassword}
+                  onChange={(e) => setPwForm(p => ({ ...p, currentPassword: e.target.value }))}
+                  placeholder="Enter current password"
+                  className="bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 pr-10"
+                />
+                <button type="button" onClick={() => setShowCurrent(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                  {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <Label className="text-gray-300 text-xs">New Password</Label>
+              <div className="relative mt-1">
+                <Input
+                  type={showNew ? "text" : "password"}
+                  value={pwForm.newPassword}
+                  onChange={(e) => setPwForm(p => ({ ...p, newPassword: e.target.value }))}
+                  placeholder="Min. 8 characters"
+                  className="bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 pr-10"
+                />
+                <button type="button" onClick={() => setShowNew(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                  {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {pwStrength && (
+                <p className={`text-xs mt-1 ${pwStrengthColor}`}>Strength: {pwStrength}</p>
+              )}
+            </div>
+            <div>
+              <Label className="text-gray-300 text-xs">Confirm New Password</Label>
+              <div className="relative mt-1">
+                <Input
+                  type="password"
+                  value={pwForm.confirmPassword}
+                  onChange={(e) => setPwForm(p => ({ ...p, confirmPassword: e.target.value }))}
+                  placeholder="Repeat new password"
+                  className="bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500"
+                />
+                {pwForm.confirmPassword && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {pwForm.newPassword === pwForm.confirmPassword
+                      ? <CheckCircle className="w-4 h-4 text-green-400" />
+                      : <AlertCircle className="w-4 h-4 text-red-400" />
+                    }
+                  </div>
+                )}
+              </div>
+            </div>
+            <Button
+              className="bg-blue-700 hover:bg-blue-600 gap-2 w-full sm:w-auto"
+              disabled={!pwForm.currentPassword || !pwForm.newPassword || !pwForm.confirmPassword || pwSaving}
+              onClick={changePassword}
+            >
+              <Shield className="w-4 h-4" />
+              {pwSaving ? "Changing..." : "Change Password"}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </AppLayout>
+  );
+}

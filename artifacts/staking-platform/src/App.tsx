@@ -15,6 +15,7 @@ import TransactionsPage from "@/pages/transactions";
 import ReferralsPage from "@/pages/referrals";
 import NotificationsPage from "@/pages/notifications";
 import AdminPage from "@/pages/admin/index";
+import ProfilePage from "@/pages/profile";
 import NotFound from "@/pages/not-found";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -70,6 +71,7 @@ function Router() {
       <Route path="/transactions" component={() => <ProtectedRoute component={TransactionsPage} />} />
       <Route path="/referrals" component={() => <ProtectedRoute component={ReferralsPage} />} />
       <Route path="/notifications" component={() => <ProtectedRoute component={NotificationsPage} />} />
+      <Route path="/profile" component={() => <ProtectedRoute component={ProfilePage} />} />
       <Route path="/admin" component={() => <AdminRoute component={AdminPage} />} />
       <Route component={NotFound} />
     </Switch>
