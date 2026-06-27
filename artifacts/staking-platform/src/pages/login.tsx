@@ -23,11 +23,18 @@ export default function LoginPage() {
     if (!email || !password) return;
     setLoading(true);
     try {
-      const { token } = await apiLogin(email, password);
+      const { token, user: loggedInUser } = await apiLogin(email, password);
       setToken(token);
       await refresh();
       queryClient.clear();
-      navigate("/dashboard");
+      // Redirect admins to /admin, everyone else to dashboard (or onboarding)
+      if (loggedInUser.role === "ADMIN") {
+        navigate("/admin");
+      } else if (!loggedInUser.onboardingComplete) {
+        navigate("/onboarding");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err: any) {
       toast({ title: "Login failed", description: err.message, variant: "destructive" });
     } finally {

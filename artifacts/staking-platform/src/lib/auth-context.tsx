@@ -28,7 +28,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     clearToken();
     setUser(null);
-    setAuthTokenGetter(null);
+    // Do NOT clear the authTokenGetter — the getter reads getToken() from
+    // localStorage every call and returns "" when cleared, which is safe.
+    // Clearing the getter here causes a race where re-login fails (401s) because
+    // the getter is never re-wired (the useEffect only runs once).
   }, []);
 
   useEffect(() => {
