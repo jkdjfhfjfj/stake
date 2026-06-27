@@ -1,10 +1,25 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, ArrowRight, TrendingUp, Gift } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Users, ArrowRight, TrendingUp, Gift, CheckCircle } from "lucide-react";
+import { getToken } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
 
 function formatKES(n: number) {
   return `KES ${n.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
+}
+
+function authedFetch(url: string, opts: RequestInit = {}) {
+  const token = getToken();
+  return fetch(url, {
+    ...opts,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(opts.headers ?? {}),
+    },
+  });
 }
 
 type ReferralRow = {
@@ -18,12 +33,30 @@ type ReferralRow = {
 };
 
 export default function AdminReferrals() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
   const { data: referrals = [], isLoading } = useQuery<ReferralRow[]>({
     queryKey: ["/api/admin/referrals"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/referrals");
+      const res = await authedFetch("/api/admin/referrals");
       if (!res.ok) throw new Error("Failed to load referrals");
       return res.json();
+    },
+  });
+
+  const markPaid = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await authedFetch(`/api/admin/referrals/${id}/mark-paid`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Referral marked as paid", variant: "success" });
+      qc.invalidateQueries({ queryKey: ["/api/admin/referrals"] });
+    },
+    onError: (e: any) => {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
     },
   });
 
@@ -42,7 +75,6 @@ export default function AdminReferrals() {
 
   return (
     <div className="mt-4 space-y-6">
-      {/* Summary stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-[#0d1a10] border-green-900/30">
           <CardContent className="p-4">
@@ -66,7 +98,7 @@ export default function AdminReferrals() {
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-1">
               <Gift className="w-4 h-4 text-yellow-400" />
-              <span className="text-xs text-gray-400">Total Rewards Paid</span>
+              <span className="text-xs text-gray-400">Total Rewards</span>
             </div>
             <p className="text-xl font-bold text-white">{formatKES(totalRewards)}</p>
           </CardContent>
@@ -74,15 +106,14 @@ export default function AdminReferrals() {
         <Card className="bg-[#0d1a10] border-green-900/30">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-1">
-              <Users className="w-4 h-4 text-purple-400" />
-              <span className="text-xs text-gray-400">Rewards Disbursed</span>
+              <CheckCircle className="w-4 h-4 text-purple-400" />
+              <span className="text-xs text-gray-400">Paid / Pending</span>
             </div>
-            <p className="text-xl font-bold text-white">{paidCount} / {referrals.length}</p>
+            <p className="text-xl font-bold text-white">{paidCount} / {referrals.length - paidCount}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Referral list */}
       {referrals.length === 0 ? (
         <Card className="bg-[#0d1a10] border-green-900/30">
           <CardContent className="p-8 text-center">
@@ -98,31 +129,32 @@ export default function AdminReferrals() {
                 <thead>
                   <tr className="border-b border-green-900/20">
                     <th className="text-left text-xs text-gray-400 font-medium px-4 py-3">Referrer</th>
-                    <th className="text-left text-xs text-gray-400 font-medium px-4 py-3"></th>
+                    <th className="px-1 py-3"></th>
                     <th className="text-left text-xs text-gray-400 font-medium px-4 py-3">Referee</th>
                     <th className="text-left text-xs text-gray-400 font-medium px-4 py-3">Tier</th>
                     <th className="text-right text-xs text-gray-400 font-medium px-4 py-3">Reward</th>
                     <th className="text-left text-xs text-gray-400 font-medium px-4 py-3">Status</th>
                     <th className="text-left text-xs text-gray-400 font-medium px-4 py-3">Date</th>
+                    <th className="text-left text-xs text-gray-400 font-medium px-4 py-3">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {referrals.map((r) => (
                     <tr key={r.id} className="border-b border-green-900/10 hover:bg-green-900/10 transition-colors">
                       <td className="px-4 py-3">
-                        <p className="text-white text-xs font-medium truncate max-w-[140px]">
+                        <p className="text-white text-xs font-medium truncate max-w-[130px]">
                           {r.referrer.fullName ?? r.referrer.email.split("@")[0]}
                         </p>
-                        <p className="text-gray-500 text-xs truncate max-w-[140px]">{r.referrer.email}</p>
+                        <p className="text-gray-500 text-xs truncate max-w-[130px]">{r.referrer.email}</p>
                       </td>
                       <td className="px-1 py-3">
                         <ArrowRight className="w-3.5 h-3.5 text-gray-600" />
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-white text-xs font-medium truncate max-w-[140px]">
+                        <p className="text-white text-xs font-medium truncate max-w-[130px]">
                           {r.referee.fullName ?? r.referee.email.split("@")[0]}
                         </p>
-                        <p className="text-gray-500 text-xs truncate max-w-[140px]">{r.referee.email}</p>
+                        <p className="text-gray-500 text-xs truncate max-w-[130px]">{r.referee.email}</p>
                       </td>
                       <td className="px-4 py-3">
                         <Badge className={r.tier === 1 ? "bg-blue-900/30 text-blue-400 border-0" : "bg-purple-900/30 text-purple-400 border-0"}>
@@ -139,6 +171,19 @@ export default function AdminReferrals() {
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-500">
                         {new Date(r.createdAt).toLocaleDateString("en-KE")}
+                      </td>
+                      <td className="px-4 py-3">
+                        {!r.paidAt && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs border-green-900/40 text-green-400 hover:bg-green-900/20"
+                            disabled={markPaid.isPending}
+                            onClick={() => markPaid.mutate(r.id)}
+                          >
+                            Mark Paid
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}

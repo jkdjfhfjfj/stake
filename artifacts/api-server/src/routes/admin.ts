@@ -354,7 +354,7 @@ router.patch("/admin/settings", requireAdmin, async (req, res): Promise<void> =>
     return;
   }
 
-  const adminClerkId = req.dbUser?.clerkId ?? "admin";
+  const adminRef = String(req.userId!);
   const keyMap: Record<string, string> = {
     payheroUsername: "payhero_username",
     payheroPassword: "payhero_password",
@@ -367,10 +367,10 @@ router.patch("/admin/settings", requireAdmin, async (req, res): Promise<void> =>
     const val = (parsed.data as Record<string, unknown>)[field];
     if (val !== undefined) {
       await db.insert(platformSettingsTable)
-        .values({ key: dbKey, value: String(val), updatedBy: adminClerkId })
+        .values({ key: dbKey, value: String(val), updatedBy: adminRef })
         .onConflictDoUpdate({
           target: platformSettingsTable.key,
-          set: { value: String(val), updatedBy: adminClerkId },
+          set: { value: String(val), updatedBy: adminRef },
         });
     }
   }
@@ -475,6 +475,110 @@ router.post("/admin/cron/process-stakes", requireAdmin, async (_req, res): Promi
   res.json(ProcessMaturedStakesResponse.parse({ processed: matured.length, autoInvested, completed }));
 });
 
+// ── All Transactions ────────────────────────────────────────────────────────
+router.get("/admin/transactions", requireAdmin, async (_req, res): Promise<void> => {
+  const txs = await db.query.transactionsTable.findMany({
+    orderBy: (t, { desc }) => [desc(t.createdAt)],
+    limit: 1000,
+  });
+
+  const userIds = [...new Set(txs.map((t) => t.userId))];
+  const users = userIds.length > 0
+    ? await db.query.usersTable.findMany({ where: (t, { inArray }) => inArray(t.id, userIds) })
+    : [];
+  const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+
+  res.json(txs.map((t) => ({
+    id: t.id,
+    userId: t.userId,
+    userEmail: userMap[t.userId]?.email ?? "",
+    userFullName: userMap[t.userId]?.fullName ?? null,
+    type: t.type,
+    amount: Number(t.amount),
+    status: t.status,
+    description: t.description ?? null,
+    phoneNumber: t.phoneNumber ?? null,
+    externalReference: t.externalReference ?? null,
+    createdAt: t.createdAt.toISOString(),
+  })));
+});
+
+// Simulate deposit completion (dev/testing only)
+router.post("/admin/transactions/:id/simulate-complete", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid transaction id" });
+    return;
+  }
+
+  const tx = await db.query.transactionsTable.findFirst({ where: eq(transactionsTable.id, id) });
+  if (!tx || tx.type !== "DEPOSIT" || tx.status !== "PENDING") {
+    res.status(400).json({ error: "Transaction must be a pending deposit" });
+    return;
+  }
+
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, tx.userId) });
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  await db.transaction(async (trx) => {
+    await trx.update(transactionsTable)
+      .set({ status: "COMPLETED", payheroRef: tx.externalReference })
+      .where(eq(transactionsTable.id, tx.id));
+    await trx.update(usersTable)
+      .set({ availableBalance: (Number(user.availableBalance) + Number(tx.amount)).toFixed(2) })
+      .where(eq(usersTable.id, tx.userId));
+  });
+
+  await createNotification({
+    userId: tx.userId,
+    type: "DEPOSIT",
+    title: "Deposit Successful",
+    message: `KES ${Number(tx.amount).toLocaleString("en-KE", { minimumFractionDigits: 2 })} has been credited to your account.`,
+  });
+
+  await db.insert(auditLogsTable).values({
+    adminId: req.userId!,
+    action: `Simulated deposit completion for tx #${tx.id}`,
+    targetUserId: tx.userId,
+    note: `Amount: ${tx.amount}`,
+  });
+
+  res.json({ ok: true, txId: tx.id, amount: Number(tx.amount) });
+});
+
+// Test PayHero connection
+router.post("/admin/settings/test-payhero", requireAdmin, async (_req, res): Promise<void> => {
+  try {
+    const rows = await db.select().from(platformSettingsTable);
+    const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    const username = map["payhero_username"] ?? "";
+    const password = map["payhero_password"] ?? "";
+    const channelId = map["payhero_channel_id"] ?? "";
+
+    if (!username || !password) {
+      res.json({ ok: false, error: "Credentials not configured. Please save username and password first." });
+      return;
+    }
+
+    const auth = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
+    const testRes = await fetch("https://backend.payhero.co.ke/api/v2/payments?page=1&per_page=1", {
+      headers: { Authorization: auth, "Content-Type": "application/json" },
+    });
+
+    if (testRes.ok || testRes.status === 404) {
+      res.json({ ok: true, message: `Connected successfully${channelId ? ` (Channel: ${channelId})` : ""}. Ready to process M-Pesa payments.` });
+    } else {
+      const body = await testRes.json().catch(() => ({})) as Record<string, unknown>;
+      res.json({ ok: false, error: `PayHero returned ${testRes.status}: ${JSON.stringify(body)}` });
+    }
+  } catch (err: any) {
+    res.json({ ok: false, error: `Network error: ${err.message}` });
+  }
+});
+
 // ── Referrals ──────────────────────────────────────────────────────────────
 router.get("/admin/referrals", requireAdmin, async (_req, res): Promise<void> => {
   const referrals = await db
@@ -508,6 +612,33 @@ router.get("/admin/referrals", requireAdmin, async (_req, res): Promise<void> =>
     referrer: userMap[r.referrerId] ?? { id: r.referrerId, email: "Unknown", fullName: null },
     referee: userMap[r.refereeId] ?? { id: r.refereeId, email: "Unknown", fullName: null },
   })));
+});
+
+// Mark referral as paid
+router.post("/admin/referrals/:id/mark-paid", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid referral id" });
+    return;
+  }
+
+  const updated = await db.update(referralsTable)
+    .set({ paidAt: new Date() })
+    .where(eq(referralsTable.id, id))
+    .returning();
+
+  if (!updated.length) {
+    res.status(404).json({ error: "Referral not found" });
+    return;
+  }
+
+  await db.insert(auditLogsTable).values({
+    adminId: req.userId!,
+    action: `Marked referral #${id} as paid`,
+    targetUserId: updated[0].referrerId,
+  });
+
+  res.json({ ok: true });
 });
 
 export default router;

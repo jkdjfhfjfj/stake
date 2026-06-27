@@ -5,13 +5,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Settings, Eye, EyeOff, Save } from "lucide-react";
+import { Settings, Eye, EyeOff, Save, Wifi, WifiOff, Loader2, PlayCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getToken } from "@/lib/auth";
+
+function authedFetch(url: string, opts: RequestInit = {}) {
+  const token = getToken();
+  return fetch(url, {
+    ...opts,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(opts.headers ?? {}),
+    },
+  });
+}
 
 export default function AdminSettings() {
   const { data, isLoading } = useGetAdminSettings();
   const { toast } = useToast();
   const [showPass, setShowPass] = useState(false);
+  const [testStatus, setTestStatus] = useState<"idle" | "loading" | "ok" | "fail">("idle");
+  const [testMsg, setTestMsg] = useState("");
   const [form, setForm] = useState({
     payheroUsername: "",
     payheroPassword: "",
@@ -35,7 +50,7 @@ export default function AdminSettings() {
   const update = useUpdateAdminSettings({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Settings saved!" });
+        toast({ title: "Settings saved!", variant: "success" });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
       },
       onError: (e: any) => {
@@ -43,6 +58,28 @@ export default function AdminSettings() {
       },
     },
   });
+
+  const testPayhero = async () => {
+    setTestStatus("loading");
+    setTestMsg("");
+    try {
+      const res = await authedFetch("/api/admin/settings/test-payhero", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setTestStatus("ok");
+        setTestMsg(data.message ?? "Connection successful!");
+        toast({ title: "PayHero connected!", description: data.message, variant: "success" });
+      } else {
+        setTestStatus("fail");
+        setTestMsg(data.error ?? "Connection failed");
+        toast({ title: "PayHero test failed", description: data.error ?? "Check your credentials", variant: "destructive" });
+      }
+    } catch (e: any) {
+      setTestStatus("fail");
+      setTestMsg(e.message ?? "Network error");
+      toast({ title: "Connection error", description: e.message, variant: "destructive" });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -67,13 +104,13 @@ export default function AdminSettings() {
             These are used for M-Pesa STK Push (deposits) and B2C (withdrawals).
           </p>
           <div>
-            <Label>Username</Label>
+            <Label className="text-gray-300">Username</Label>
             <Input value={form.payheroUsername} onChange={(e) => setForm(f => ({ ...f, payheroUsername: e.target.value }))}
               placeholder="PayHero username"
               className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500" />
           </div>
           <div>
-            <Label>Password</Label>
+            <Label className="text-gray-300">Password</Label>
             <div className="relative mt-1.5">
               <Input value={form.payheroPassword} onChange={(e) => setForm(f => ({ ...f, payheroPassword: e.target.value }))}
                 type={showPass ? "text" : "password"} placeholder="PayHero password"
@@ -85,10 +122,38 @@ export default function AdminSettings() {
             </div>
           </div>
           <div>
-            <Label>Channel ID (for M-Pesa)</Label>
+            <Label className="text-gray-300">Channel ID (for M-Pesa)</Label>
             <Input value={form.payheroChannelId} onChange={(e) => setForm(f => ({ ...f, payheroChannelId: e.target.value }))}
               placeholder="e.g. 12345"
               className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500" />
+          </div>
+
+          {/* Test connection */}
+          <div className="flex items-center gap-3 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-green-900/40 text-green-400 hover:bg-green-900/20 gap-2"
+              onClick={testPayhero}
+              disabled={testStatus === "loading"}
+            >
+              {testStatus === "loading" ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : testStatus === "ok" ? (
+                <Wifi className="w-4 h-4" />
+              ) : testStatus === "fail" ? (
+                <WifiOff className="w-4 h-4 text-red-400" />
+              ) : (
+                <PlayCircle className="w-4 h-4" />
+              )}
+              Test Connection
+            </Button>
+            {testMsg && (
+              <span className={`text-xs ${testStatus === "ok" ? "text-green-400" : "text-red-400"}`}>
+                {testMsg}
+              </span>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -99,21 +164,28 @@ export default function AdminSettings() {
           <CardTitle className="text-base text-white">Referral Commission Rates</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <p className="text-xs text-gray-400">
+            Commission rates applied when a referred user completes their first stake.
+          </p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Tier 1 Rate (%)</Label>
+              <Label className="text-gray-300">Tier 1 Rate (%)</Label>
               <Input value={form.tier1ReferralPercent} type="number" min={0} max={100}
                 onChange={(e) => setForm(f => ({ ...f, tier1ReferralPercent: Number(e.target.value) }))}
                 className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500" />
-              <p className="text-xs text-gray-500 mt-1">Paid on direct referrals' first stake</p>
+              <p className="text-xs text-gray-500 mt-1">Direct referrals' first stake</p>
             </div>
             <div>
-              <Label>Tier 2 Rate (%)</Label>
+              <Label className="text-gray-300">Tier 2 Rate (%)</Label>
               <Input value={form.tier2ReferralPercent} type="number" min={0} max={100}
                 onChange={(e) => setForm(f => ({ ...f, tier2ReferralPercent: Number(e.target.value) }))}
                 className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500" />
-              <p className="text-xs text-gray-500 mt-1">Paid on second-level referrals' first stake</p>
+              <p className="text-xs text-gray-500 mt-1">Second-level referrals' first stake</p>
             </div>
+          </div>
+          <div className="p-3 bg-green-900/10 border border-green-900/20 rounded-lg text-xs text-gray-400">
+            Example: A user stakes KES 10,000. Tier 1 referrer earns KES {(10000 * form.tier1ReferralPercent / 100).toLocaleString()},
+            Tier 2 earns KES {(10000 * form.tier2ReferralPercent / 100).toLocaleString()}.
           </div>
         </CardContent>
       </Card>
@@ -122,7 +194,7 @@ export default function AdminSettings() {
         disabled={update.isPending}
         onClick={() => update.mutate({ data: form })}>
         <Save className="w-4 h-4" />
-        {update.isPending ? "Saving..." : "Save All Settings"}
+        {update.isPending ? "Saving…" : "Save All Settings"}
       </Button>
     </div>
   );

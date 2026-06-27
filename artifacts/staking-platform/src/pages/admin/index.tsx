@@ -2,13 +2,14 @@ import { useState } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useGetMe } from "@workspace/api-client-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, Users, BarChart3, ArrowUpRight, Settings, FileText, GitBranch } from "lucide-react";
+import { Shield, Users, BarChart3, ArrowUpRight, Settings, FileText, GitBranch, ArrowLeftRight } from "lucide-react";
 import AdminAnalytics from "./analytics";
 import AdminUsers from "./users";
 import AdminWithdrawals from "./withdrawals";
 import AdminSettings from "./settings";
 import AdminAuditLogs from "./audit-logs";
 import AdminReferrals from "./referrals";
+import AdminTransactions from "./transactions";
 
 export default function AdminPage() {
   const { data: me } = useGetMe();
@@ -56,6 +57,9 @@ export default function AdminPage() {
             <TabsTrigger value="users" className="data-[state=active]:bg-green-600 data-[state=active]:text-white gap-1.5">
               <Users className="w-4 h-4" /> Users
             </TabsTrigger>
+            <TabsTrigger value="transactions" className="data-[state=active]:bg-green-600 data-[state=active]:text-white gap-1.5">
+              <ArrowLeftRight className="w-4 h-4" /> Transactions
+            </TabsTrigger>
             <TabsTrigger value="withdrawals" className="data-[state=active]:bg-green-600 data-[state=active]:text-white gap-1.5">
               <ArrowUpRight className="w-4 h-4" /> Withdrawals
             </TabsTrigger>
@@ -72,6 +76,7 @@ export default function AdminPage() {
 
           <TabsContent value="analytics"><AdminAnalytics /></TabsContent>
           <TabsContent value="users"><AdminUsers /></TabsContent>
+          <TabsContent value="transactions"><AdminTransactions /></TabsContent>
           <TabsContent value="withdrawals"><AdminWithdrawals /></TabsContent>
           <TabsContent value="referrals"><AdminReferrals /></TabsContent>
           <TabsContent value="settings"><AdminSettings /></TabsContent>
