@@ -334,7 +334,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Active Stakes ──────────────────────────────────────── */}
-        <div className="bg-[#0a1208] border border-green-900/25 rounded-2xl overflow-hidden">
+        <div className="bg-[#0a1208] border border-green-900/25 rounded-2xl">
           <div className="flex items-center justify-between px-4 py-3.5 border-b border-green-900/20">
             <div className="flex items-center gap-2">
               <Target className="w-4 h-4 text-green-400" />
@@ -421,7 +421,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Recent Transactions ────────────────────────────────── */}
-        <div className="bg-[#0a1208] border border-green-900/25 rounded-2xl overflow-hidden">
+        <div className="bg-[#0a1208] border border-green-900/25 rounded-2xl">
           <div className="flex items-center justify-between px-4 py-3.5 border-b border-green-900/20">
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-sky-400" />

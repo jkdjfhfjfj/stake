@@ -47,7 +47,7 @@ function WhatsAppWidget() {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="fixed bottom-20 md:bottom-6 right-4 z-50 w-12 h-12 bg-[#25D366] rounded-full flex items-center justify-center shadow-lg hover:bg-[#1ebe5d] active:scale-95"
+      className="fixed bottom-20 md:bottom-6 right-4 z-50 w-12 h-12 bg-[#25D366] rounded-full flex items-center justify-center shadow-lg hover:bg-[#1ebe5d] active:opacity-70"
       title="Chat with support on WhatsApp"
       aria-label="WhatsApp Support"
     >
@@ -225,7 +225,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <WhatsAppWidget />
 
       {/* ══ MAIN CONTENT ══ */}
-      <main className="md:ml-64 pt-14 md:pt-0 pb-20 md:pb-0">
+      {/* isolate creates a new stacking context, preventing child z-indexes from
+          interacting with fixed bars — eliminates Chrome GPU layer compositing overload */}
+      <main className="md:ml-64 pt-14 md:pt-0 pb-20 md:pb-0 isolate">
         <div className="p-4 md:p-6 max-w-6xl mx-auto">
           {children}
         </div>

@@ -100,7 +100,7 @@ function StakePlanCard({ plan, availableBalance, rank }: { plan: any; availableB
   const presets = [plan.minAmount, plan.minAmount * 2, plan.minAmount * 5].filter(p => p <= (plan.maxAmount || Infinity));
 
   return (
-    <Card className={`bg-[#0d1a10] border-green-900/30 hover:border-green-700/50 transition-all hover:shadow-lg hover:shadow-green-900/10 relative overflow-hidden ${rank === 0 ? "ring-1 ring-green-500/30" : ""}`}>
+    <Card className={`bg-[#0d1a10] border-green-900/30 hover:border-green-700/50 transition-colors relative ${rank === 0 ? "ring-1 ring-green-500/30" : ""}`}>
       {rank === 0 && (
         <div className="absolute top-0 right-0 bg-green-600 text-white text-[10px] font-bold px-2 py-1 rounded-bl-xl flex items-center gap-1">
           <Star className="w-2.5 h-2.5" /> POPULAR
