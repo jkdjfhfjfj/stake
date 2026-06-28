@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminListUsers, useAdminUpdateUser } from "@workspace/api-client-react";
 import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,16 +7,287 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Lock, Unlock, Edit, Search, UserCheck, Shield, TrendingUp, Wallet, Phone, Mail, Plus, Minus } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import {
+  Users, Lock, Unlock, Edit, Search, Shield, TrendingUp, Wallet, Phone, Mail, Plus, Minus,
+  TrendingDown, Clock, CheckCircle, XCircle, FileCheck, FilePlus, AlertTriangle, ChevronDown, ChevronUp
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getToken } from "@/lib/auth";
 
 function formatKES(n: number) {
   return `KES ${n.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 }
 
-function EditUserDialog({ user }: { user: any }) {
+function authedFetch(url: string, opts: RequestInit = {}) {
+  const token = getToken();
+  return fetch(url, {
+    ...opts,
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(opts.headers ?? {}) },
+  });
+}
+
+function timeLeft(endDate: string) {
+  const diff = new Date(endDate).getTime() - Date.now();
+  if (diff <= 0) return "Matured";
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  if (d > 0) return `${d}d ${h}h left`;
+  if (h > 0) return `${h}h ${m}m left`;
+  return `${m}m left`;
+}
+
+function KycBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    NONE: { label: "No KYC", cls: "bg-gray-700/30 text-gray-500" },
+    REQUESTED: { label: "KYC Requested", cls: "bg-yellow-900/30 text-yellow-400 border-yellow-700/30" },
+    SUBMITTED: { label: "KYC Submitted", cls: "bg-blue-900/30 text-blue-400 border-blue-700/30" },
+    APPROVED: { label: "KYC Approved", cls: "bg-green-900/30 text-green-400 border-green-700/30" },
+    REJECTED: { label: "KYC Rejected", cls: "bg-red-900/30 text-red-400 border-red-700/30" },
+  };
+  const v = map[status] ?? map.NONE;
+  return <Badge className={`${v.cls} border-0 text-[10px] px-1.5`}>{v.label}</Badge>;
+}
+
+function UserStakesDialog({ user }: { user: any }) {
+  const [open, setOpen] = useState(false);
+  const { data: stakes, isLoading } = useQuery<any[]>({
+    queryKey: [`/api/admin/users/${user.id}/stakes`],
+    queryFn: async () => {
+      const res = await authedFetch(`/api/admin/users/${user.id}/stakes`);
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: open,
+  });
+
+  const activeStakes = (stakes ?? []).filter((s) => s.status === "ACTIVE");
+  const historyStakes = (stakes ?? []).filter((s) => s.status !== "ACTIVE");
+
+  return (
+    <>
+      <Button size="sm" variant="ghost"
+        className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 h-8 px-2 gap-1 text-xs"
+        onClick={() => setOpen(true)}>
+        <TrendingUp className="w-3.5 h-3.5" />
+        <span className="hidden sm:inline">Stakes</span>
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="bg-[#0d1a10] border-green-900/40 text-white max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-sm flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-blue-400" />
+              Stakes — {user.fullName ?? user.email}
+            </DialogTitle>
+          </DialogHeader>
+          {isLoading ? (
+            <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin" /></div>
+          ) : !stakes?.length ? (
+            <div className="text-center py-8 text-gray-500 text-sm">No stakes found</div>
+          ) : (
+            <div className="space-y-3">
+              {activeStakes.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-2">Active ({activeStakes.length})</p>
+                  <div className="space-y-2">
+                    {activeStakes.map((s) => {
+                      const totalDays = s.durationDays;
+                      const daysLeft = Math.max(0, Math.ceil((new Date(s.endDate).getTime() - Date.now()) / 86400000));
+                      const elapsed = totalDays - daysLeft;
+                      const progress = Math.min(100, (elapsed / totalDays) * 100);
+                      const fullReturn = s.principalAmount * (1 + s.roiPercent / 100);
+                      return (
+                        <div key={s.id} className="bg-[#0a1410] rounded-xl p-3 border border-green-900/20">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <p className="text-white text-sm font-medium">{s.planName}</p>
+                              <p className="text-xs text-gray-500">{formatKES(s.principalAmount)} staked</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-green-400 text-sm font-bold">{s.roiPercent}% ROI</p>
+                              <p className="text-[10px] text-gray-500">{s.durationDays}d plan</p>
+                            </div>
+                          </div>
+                          <div className="space-y-1 mb-2">
+                            <div className="flex justify-between text-[10px] text-gray-400">
+                              <span>{elapsed}d elapsed</span>
+                              <span className="text-yellow-400 font-medium">{timeLeft(s.endDate)}</span>
+                            </div>
+                            <Progress value={progress} className="h-1.5 bg-green-900/30" />
+                            <div className="flex justify-between text-[10px] text-gray-600">
+                              <span>{new Date(s.startDate).toLocaleDateString("en-KE")}</span>
+                              <span>{new Date(s.endDate).toLocaleDateString("en-KE")}</span>
+                            </div>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-gray-500">Returns</span>
+                            <span className="text-green-400 font-medium">{formatKES(fullReturn)}</span>
+                          </div>
+                          {s.autoInvest && (
+                            <p className="text-[10px] text-blue-400 mt-1">Auto-invest on maturity</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {historyStakes.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-2">History ({historyStakes.length})</p>
+                  <div className="space-y-1.5">
+                    {historyStakes.map((s) => (
+                      <div key={s.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-[#0a1410] border border-green-900/10">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${s.status === "COMPLETED" ? "bg-green-900/30" : "bg-red-900/20"}`}>
+                          {s.status === "COMPLETED"
+                            ? <CheckCircle className="w-3 h-3 text-green-400" />
+                            : <AlertTriangle className="w-3 h-3 text-red-400" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-white font-medium">{s.planName}</p>
+                          <p className="text-[10px] text-gray-500">{new Date(s.createdAt).toLocaleDateString("en-KE")} → {new Date(s.endDate).toLocaleDateString("en-KE")}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-white">{formatKES(s.principalAmount)}</p>
+                          <Badge className={`${s.status === "COMPLETED" ? "bg-green-900/30 text-green-400" : "bg-red-900/30 text-red-400"} border-0 text-[10px]`}>
+                            {s.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function KycAdminControls({ user, onRefresh }: { user: any; onRefresh: () => void }) {
+  const { toast } = useToast();
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewNote, setReviewNote] = useState("");
+  const [docOpen, setDocOpen] = useState(false);
+
+  const requestKyc = useMutation({
+    mutationFn: async () => {
+      const res = await authedFetch(`/api/admin/users/${user.id}/kyc/request`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "KYC requested", description: "User has been notified.", variant: "success" });
+      onRefresh();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const reviewKyc = useMutation({
+    mutationFn: async (decision: "APPROVED" | "REJECTED") => {
+      const res = await authedFetch(`/api/admin/users/${user.id}/kyc/review`, {
+        method: "PATCH",
+        body: JSON.stringify({ decision, note: reviewNote }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      return res.json();
+    },
+    onSuccess: (_, decision) => {
+      toast({ title: `KYC ${decision}`, variant: "success" });
+      setReviewOpen(false);
+      setReviewNote("");
+      onRefresh();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const kycStatus = user.kycStatus ?? "NONE";
+
+  return (
+    <div className="flex items-center gap-1">
+      {kycStatus === "NONE" || kycStatus === "APPROVED" ? (
+        <Button size="sm" variant="ghost"
+          className="h-7 px-2 text-[10px] text-purple-400 hover:bg-purple-900/20 gap-1"
+          disabled={requestKyc.isPending}
+          onClick={() => requestKyc.mutate()}
+          title="Request KYC">
+          <FilePlus className="w-3 h-3" />
+          <span className="hidden sm:inline">KYC</span>
+        </Button>
+      ) : kycStatus === "SUBMITTED" ? (
+        <>
+          <Button size="sm" variant="ghost"
+            className="h-7 px-2 text-[10px] text-blue-400 hover:bg-blue-900/20 gap-1"
+            onClick={() => setDocOpen(true)}
+            title="View submitted document">
+            <FileCheck className="w-3 h-3" />
+            <span className="hidden sm:inline">Doc</span>
+          </Button>
+          <Button size="sm" variant="ghost"
+            className="h-7 px-2 text-[10px] text-green-400 hover:bg-green-900/20 gap-1"
+            onClick={() => setReviewOpen(true)}
+            title="Review KYC">
+            <CheckCircle className="w-3 h-3" />
+            <span className="hidden sm:inline">Review</span>
+          </Button>
+          <Dialog open={docOpen} onOpenChange={setDocOpen}>
+            <DialogContent className="bg-[#0d1a10] border-green-900/40 text-white max-w-xl">
+              <DialogHeader>
+                <DialogTitle className="text-sm">KYC Document — {user.fullName ?? user.email}</DialogTitle>
+              </DialogHeader>
+              {user.kycDocumentUrl ? (
+                <div className="space-y-3">
+                  <img src={user.kycDocumentUrl} alt="KYC Document" className="w-full rounded-xl border border-green-900/30 object-contain max-h-[60vh]" />
+                  <a href={user.kycDocumentUrl} target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-blue-400 hover:underline block text-center">Open in new tab</a>
+                  <div className="flex gap-2">
+                    <Button className="flex-1 bg-green-600 hover:bg-green-500 h-9" onClick={() => { setDocOpen(false); reviewKyc.mutate("APPROVED"); }}>
+                      <CheckCircle className="w-3.5 h-3.5 mr-1" /> Approve
+                    </Button>
+                    <Button variant="outline" className="flex-1 border-red-900/40 text-red-400 hover:bg-red-900/20 h-9"
+                      onClick={() => { setDocOpen(false); setReviewOpen(true); }}>
+                      <XCircle className="w-3.5 h-3.5 mr-1" /> Reject
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-400 text-sm py-4 text-center">No document URL stored</p>
+              )}
+            </DialogContent>
+          </Dialog>
+          <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
+            <DialogContent className="bg-[#0d1a10] border-green-900/40 text-white max-w-sm">
+              <DialogHeader><DialogTitle className="text-sm">Review KYC</DialogTitle></DialogHeader>
+              <div className="space-y-4 pt-2">
+                <Label className="text-gray-300 text-xs">Rejection reason (optional)</Label>
+                <Input value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="e.g. Document unclear"
+                  className="bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-9 text-xs" />
+                <div className="flex gap-2">
+                  <Button className="flex-1 bg-green-600 hover:bg-green-500 h-9" onClick={() => reviewKyc.mutate("APPROVED")} disabled={reviewKyc.isPending}>
+                    Approve
+                  </Button>
+                  <Button variant="outline" className="flex-1 border-red-900/40 text-red-400 hover:bg-red-900/20 h-9"
+                    onClick={() => reviewKyc.mutate("REJECTED")} disabled={reviewKyc.isPending}>
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </>
+      ) : kycStatus === "REQUESTED" || kycStatus === "REJECTED" ? (
+        <Badge className="bg-yellow-900/20 text-yellow-400 border-0 text-[10px] px-1.5">Awaiting</Badge>
+      ) : null}
+    </div>
+  );
+}
+
+function EditUserDialog({ user, onRefresh }: { user: any; onRefresh: () => void }) {
   const [open, setOpen] = useState(false);
   const [role, setRole] = useState<string>(user.role);
   const [adj, setAdj] = useState("");
@@ -30,6 +302,7 @@ function EditUserDialog({ user }: { user: any }) {
         setOpen(false);
         setAdj("");
         setNote("");
+        onRefresh();
       },
       onError: (e: any) => {
         toast({ title: "Error", description: e?.data?.error ?? e?.message ?? "Try again", variant: "destructive" });
@@ -42,12 +315,11 @@ function EditUserDialog({ user }: { user: any }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" className="text-gray-400 hover:text-white hover:bg-green-900/20 h-8 px-2">
-          <Edit className="w-3.5 h-3.5" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="bg-[#0d1a10] border-green-900/40 text-white max-w-md">
+      <Button size="sm" variant="ghost" className="text-gray-400 hover:text-white hover:bg-green-900/20 h-8 px-2"
+        onClick={() => setOpen(true)}>
+        <Edit className="w-3.5 h-3.5" />
+      </Button>
+      <DialogContent className="bg-[#0d1a10] border-green-900/40 text-white max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-green-800 flex items-center justify-center text-sm font-bold">
@@ -57,27 +329,25 @@ function EditUserDialog({ user }: { user: any }) {
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-5 pt-2">
-          {/* User info */}
           <div className="bg-[#0a1410] rounded-xl p-3 border border-green-900/20 space-y-2 text-sm">
             <div className="flex items-center gap-2 text-gray-400">
-              <Mail className="w-3.5 h-3.5" /><span className="truncate">{user.email}</span>
+              <Mail className="w-3.5 h-3.5" /><span className="truncate text-xs">{user.email}</span>
             </div>
             {user.mpesaNumber && (
               <div className="flex items-center gap-2 text-gray-400">
-                <Phone className="w-3.5 h-3.5" /><span>{user.mpesaNumber}</span>
+                <Phone className="w-3.5 h-3.5" /><span className="text-xs">{user.mpesaNumber}</span>
               </div>
             )}
             <div className="flex items-center gap-2 text-gray-400">
               <Wallet className="w-3.5 h-3.5" />
-              <span>Balance: <strong className="text-green-400">{formatKES(user.availableBalance)}</strong></span>
+              <span className="text-xs">Balance: <strong className="text-green-400">{formatKES(user.availableBalance)}</strong></span>
             </div>
             <div className="flex items-center gap-2 text-gray-400">
               <TrendingUp className="w-3.5 h-3.5" />
-              <span>{user.activeStakesCount ?? 0} active stakes</span>
+              <span className="text-xs">{user.activeStakesCount ?? 0} active stakes · KYC: {user.kycStatus ?? "NONE"}</span>
             </div>
           </div>
 
-          {/* Role */}
           <div>
             <Label className="text-gray-300">Role</Label>
             <Select value={role} onValueChange={setRole}>
@@ -91,13 +361,12 @@ function EditUserDialog({ user }: { user: any }) {
             </Select>
           </div>
 
-          {/* Balance adjustment */}
           <div>
             <Label className="text-gray-300">Balance Adjustment</Label>
-            <p className="text-xs text-gray-500 mt-0.5 mb-1.5">Use positive numbers to credit, negative to debit</p>
+            <p className="text-xs text-gray-500 mt-0.5 mb-1.5">Positive = credit, negative = debit</p>
             <div className="flex gap-2">
               <button onClick={() => setAdj(adj.startsWith("-") ? adj.slice(1) : "-" + adj)}
-                className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-colors shrink-0 ${
+                className={`w-9 h-9 rounded-lg flex items-center justify-center border shrink-0 ${
                   adj.startsWith("-") ? "border-red-700/50 bg-red-900/20 text-red-400" : "border-green-900/40 text-green-400"
                 }`}>
                 {adj.startsWith("-") ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
@@ -143,17 +412,17 @@ function EditUserDialog({ user }: { user: any }) {
 }
 
 export default function AdminUsers() {
-  const { data: users = [], isLoading } = useAdminListUsers();
+  const { data: users = [], isLoading, refetch } = useAdminListUsers();
   const [search, setSearch] = useState("");
 
-  const filtered = users.filter((u: any) => {
+  const filtered = (users as any[]).filter((u) => {
     const q = search.toLowerCase();
     return !q || u.email.toLowerCase().includes(q) || (u.fullName ?? "").toLowerCase().includes(q) || (u.mpesaNumber ?? "").includes(q);
   });
 
-  const adminCount = users.filter((u: any) => u.role === "ADMIN").length;
-  const lockedCount = users.filter((u: any) => u.isLocked).length;
-  const activeStakers = users.filter((u: any) => (u.activeStakesCount ?? 0) > 0).length;
+  const adminCount = (users as any[]).filter((u) => u.role === "ADMIN").length;
+  const activeStakers = (users as any[]).filter((u) => (u.activeStakesCount ?? 0) > 0).length;
+  const kycPending = (users as any[]).filter((u) => u.kycStatus === "SUBMITTED").length;
 
   if (isLoading) {
     return (
@@ -167,12 +436,12 @@ export default function AdminUsers() {
 
   return (
     <div className="space-y-4">
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Total Users", value: users.length, icon: Users, color: "text-green-400", iconBg: "bg-green-900/30" },
+          { label: "Total Users", value: (users as any[]).length, icon: Users, color: "text-green-400", iconBg: "bg-green-900/30" },
           { label: "Active Stakers", value: activeStakers, icon: TrendingUp, color: "text-blue-400", iconBg: "bg-blue-900/20" },
           { label: "Admins", value: adminCount, icon: Shield, color: "text-amber-400", iconBg: "bg-amber-900/20" },
+          { label: "KYC Pending", value: kycPending, icon: FileCheck, color: "text-purple-400", iconBg: "bg-purple-900/20" },
         ].map((s) => (
           <Card key={s.label} className="bg-[#0d1a10] border-green-900/30">
             <CardContent className="p-3">
@@ -188,7 +457,6 @@ export default function AdminUsers() {
         ))}
       </div>
 
-      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
         <Input
@@ -199,17 +467,16 @@ export default function AdminUsers() {
         />
       </div>
 
-      <p className="text-xs text-gray-500">{filtered.length} of {users.length} users</p>
+      <p className="text-xs text-gray-500">{filtered.length} of {(users as any[]).length} users</p>
 
-      {/* User list */}
       <div className="space-y-2">
         {filtered.map((user: any) => (
-          <div key={user.id} className="bg-[#0d1a10] border border-green-900/20 rounded-xl p-3 flex items-center gap-3 hover:border-green-800/30 transition-colors">
+          <div key={user.id} className="bg-[#0d1a10] border border-green-900/20 rounded-xl p-3 flex items-center gap-3 hover:border-green-800/30">
             <div className="w-9 h-9 rounded-full bg-green-900/40 flex items-center justify-center text-green-400 font-bold text-sm shrink-0">
               {user.email[0].toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="text-sm font-medium text-white truncate">{user.fullName ?? "—"}</p>
                 {user.role === "ADMIN" && (
                   <Badge className="bg-amber-900/40 text-amber-400 border-amber-700/40 text-[10px] px-1.5">Admin</Badge>
@@ -220,6 +487,7 @@ export default function AdminUsers() {
                 {(user.activeStakesCount ?? 0) > 0 && (
                   <Badge className="bg-blue-900/30 text-blue-400 border-blue-700/30 text-[10px] px-1.5">{user.activeStakesCount} stakes</Badge>
                 )}
+                {user.kycStatus && user.kycStatus !== "NONE" && <KycBadge status={user.kycStatus} />}
               </div>
               <p className="text-xs text-gray-500 truncate">{user.email}</p>
             </div>
@@ -227,7 +495,11 @@ export default function AdminUsers() {
               <p className="text-sm font-medium text-white">{formatKES(user.availableBalance)}</p>
               <p className="text-xs text-gray-500">balance</p>
             </div>
-            <EditUserDialog user={user} />
+            <div className="flex items-center gap-1 shrink-0">
+              <UserStakesDialog user={user} />
+              <KycAdminControls user={user} onRefresh={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] })} />
+              <EditUserDialog user={user} onRefresh={() => {}} />
+            </div>
           </div>
         ))}
         {filtered.length === 0 && (

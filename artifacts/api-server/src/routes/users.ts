@@ -83,6 +83,27 @@ router.post("/users/me/onboarding", requireAuth, async (req, res): Promise<void>
   }));
 });
 
+router.get("/users/me/kyc", requireAuth, async (req, res): Promise<void> => {
+  const user = req.dbUser!;
+  res.json({
+    kycStatus: user.kycStatus ?? "NONE",
+    kycDocumentUrl: user.kycDocumentUrl ?? null,
+    kycRequestedAt: user.kycRequestedAt ? user.kycRequestedAt.toISOString() : null,
+  });
+});
+
+router.patch("/users/me/kyc", requireAuth, async (req, res): Promise<void> => {
+  const { documentUrl } = req.body as { documentUrl?: string };
+  if (!documentUrl) { res.status(400).json({ error: "documentUrl is required" }); return; }
+  const user = req.dbUser!;
+  if (!["REQUESTED", "REJECTED"].includes(user.kycStatus ?? "NONE")) {
+    res.status(400).json({ error: "KYC has not been requested by admin" }); return;
+  }
+  await db.update(usersTable).set({ kycStatus: "SUBMITTED", kycDocumentUrl: documentUrl })
+    .where(eq(usersTable.id, req.userId!));
+  res.json({ ok: true, kycStatus: "SUBMITTED" });
+});
+
 router.get("/users/me/dashboard", requireAuth, async (req, res): Promise<void> => {
   const user = req.dbUser!;
 

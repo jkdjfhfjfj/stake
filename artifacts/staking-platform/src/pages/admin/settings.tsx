@@ -5,7 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Settings, Eye, EyeOff, Save, Wifi, WifiOff, Loader2, PlayCircle, CreditCard, GitBranch, Info } from "lucide-react";
+import {
+  Settings, Eye, EyeOff, Save, Wifi, WifiOff, Loader2, PlayCircle,
+  CreditCard, GitBranch, Info, MessageCircle, Camera, CheckCircle,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getToken } from "@/lib/auth";
 
@@ -35,6 +38,14 @@ export default function AdminSettings() {
     tier2ReferralPercent: 2,
   });
 
+  const [extForm, setExtForm] = useState({
+    whatsappNumber: "",
+    cloudinaryCloudName: "",
+    cloudinaryUploadPreset: "",
+  });
+  const [extLoading, setExtLoading] = useState(false);
+  const [extSaving, setExtSaving] = useState(false);
+
   useEffect(() => {
     if (data) {
       setForm({
@@ -47,10 +58,25 @@ export default function AdminSettings() {
     }
   }, [data]);
 
+  useEffect(() => {
+    setExtLoading(true);
+    authedFetch("/api/admin/settings/extended")
+      .then((r) => r.json())
+      .then((d) => {
+        setExtForm({
+          whatsappNumber: d.whatsappNumber ?? "",
+          cloudinaryCloudName: d.cloudinaryCloudName ?? "",
+          cloudinaryUploadPreset: d.cloudinaryUploadPreset ?? "",
+        });
+      })
+      .catch(() => {})
+      .finally(() => setExtLoading(false));
+  }, []);
+
   const update = useUpdateAdminSettings({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Settings saved!", variant: "success" });
+        toast({ title: "PayHero & Referral settings saved!", variant: "success" });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
       },
       onError: (e: any) => {
@@ -59,35 +85,53 @@ export default function AdminSettings() {
     },
   });
 
+  const saveExtended = async () => {
+    setExtSaving(true);
+    try {
+      const res = await authedFetch("/api/admin/settings/extended", {
+        method: "PATCH",
+        body: JSON.stringify(extForm),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      toast({ title: "Communication & KYC settings saved!", variant: "success" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setExtSaving(false);
+    }
+  };
+
   const testPayhero = async () => {
     setTestStatus("loading");
     setTestMsg("");
     try {
       const res = await authedFetch("/api/admin/settings/test-payhero", { method: "POST" });
-      const data = await res.json();
-      if (res.ok && data.ok) {
+      const d = await res.json();
+      if (res.ok && d.ok) {
         setTestStatus("ok");
-        setTestMsg(data.message ?? "Connection successful!");
-        toast({ title: "PayHero connected!", description: data.message, variant: "success" });
+        setTestMsg(d.message ?? "Connection successful!");
+        toast({ title: "PayHero connected!", description: d.message, variant: "success" });
       } else {
         setTestStatus("fail");
-        setTestMsg(data.error ?? "Connection failed");
-        toast({ title: "PayHero test failed", description: data.error ?? "Check your credentials", variant: "destructive" });
+        setTestMsg(d.error ?? "Connection failed");
+        toast({ title: "PayHero test failed", description: d.error ?? "Check credentials", variant: "destructive" });
       }
     } catch (e: any) {
       setTestStatus("fail");
       setTestMsg(e.message ?? "Network error");
-      toast({ title: "Connection error", description: e.message, variant: "destructive" });
     }
   };
 
   const f = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(prev => ({ ...prev, [key]: key.includes("Percent") ? Number(e.target.value) : e.target.value }));
 
-  if (isLoading) {
+  const ef = (key: keyof typeof extForm) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setExtForm(prev => ({ ...prev, [key]: e.target.value }));
+
+  if (isLoading || extLoading) {
     return (
       <div className="space-y-4">
-        {[...Array(2)].map((_, i) => <div key={i} className="h-40 bg-[#0d1a10] rounded-xl border border-green-900/20" />)}
+        {[...Array(3)].map((_, i) => <div key={i} className="h-40 bg-[#0d1a10] rounded-xl border border-green-900/20" />)}
       </div>
     );
   }
@@ -107,9 +151,8 @@ export default function AdminSettings() {
         <CardContent className="space-y-4">
           <div className="bg-blue-900/10 border border-blue-900/20 rounded-xl p-3 text-xs text-blue-300/80 flex gap-2">
             <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            <span>Enter your PayHero credentials from <strong>backend.payhero.co.ke</strong>. These are used for M-Pesa STK Push (deposits) and B2C disbursement (withdrawals).</span>
+            <span>Enter your PayHero credentials from <strong>backend.payhero.co.ke</strong>. Used for M-Pesa STK Push and B2C disbursement.</span>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 sm:col-span-1">
               <Label className="text-gray-300 text-xs">Username</Label>
@@ -134,7 +177,6 @@ export default function AdminSettings() {
               </div>
             </div>
           </div>
-
           <div className="flex items-center gap-3 pt-1">
             <Button type="button" variant="outline" size="sm"
               className="border-green-900/40 text-green-400 hover:bg-green-900/20 gap-2"
@@ -146,9 +188,7 @@ export default function AdminSettings() {
               Test Connection
             </Button>
             {testMsg && (
-              <span className={`text-xs ${testStatus === "ok" ? "text-green-400" : "text-red-400"}`}>
-                {testMsg}
-              </span>
+              <span className={`text-xs ${testStatus === "ok" ? "text-green-400" : "text-red-400"}`}>{testMsg}</span>
             )}
           </div>
         </CardContent>
@@ -165,9 +205,7 @@ export default function AdminSettings() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-xs text-gray-400">
-            Commission percentages applied when a referred user makes their first stake.
-          </p>
+          <p className="text-xs text-gray-400">Commission percentages applied when a referred user makes their first stake.</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label className="text-gray-300 text-xs">Tier 1 Rate (%)</Label>
@@ -204,7 +242,78 @@ export default function AdminSettings() {
         disabled={update.isPending}
         onClick={() => update.mutate({ data: form })}>
         <Save className="w-4 h-4" />
-        {update.isPending ? "Saving…" : "Save All Settings"}
+        {update.isPending ? "Saving…" : "Save PayHero & Referral Settings"}
+      </Button>
+
+      {/* WhatsApp Support */}
+      <Card className="bg-[#0d1a10] border-green-900/30">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base text-white flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-green-900/30 flex items-center justify-center">
+              <MessageCircle className="w-3.5 h-3.5 text-green-400" />
+            </div>
+            WhatsApp Support Widget
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="bg-green-900/10 border border-green-900/20 rounded-xl p-3 text-xs text-green-300/80 flex gap-2">
+            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <span>A floating WhatsApp button will appear on all user pages. Include the country code (e.g. <strong>254712345678</strong> for Kenya).</span>
+          </div>
+          <div>
+            <Label className="text-gray-300 text-xs">WhatsApp Phone Number</Label>
+            <Input value={extForm.whatsappNumber} onChange={ef("whatsappNumber")}
+              placeholder="254712345678"
+              className="mt-1 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-9" />
+            <p className="text-[10px] text-gray-500 mt-1">Leave blank to hide the widget</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Cloudinary KYC */}
+      <Card className="bg-[#0d1a10] border-green-900/30">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base text-white flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-orange-900/30 flex items-center justify-center">
+              <Camera className="w-3.5 h-3.5 text-orange-400" />
+            </div>
+            KYC Document Upload (Cloudinary)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="bg-orange-900/10 border border-orange-900/20 rounded-xl p-3 text-xs text-orange-300/80 flex gap-2">
+            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <span>Configure your Cloudinary account for KYC document uploads. Create an <strong>unsigned upload preset</strong> in your Cloudinary console. Only the cloud name and upload preset are shared with users — your API secret stays private.</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2 sm:col-span-1">
+              <Label className="text-gray-300 text-xs">Cloud Name</Label>
+              <Input value={extForm.cloudinaryCloudName} onChange={ef("cloudinaryCloudName")}
+                placeholder="e.g. mycloud"
+                className="mt-1 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-9" />
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <Label className="text-gray-300 text-xs">Upload Preset (unsigned)</Label>
+              <Input value={extForm.cloudinaryUploadPreset} onChange={ef("cloudinaryUploadPreset")}
+                placeholder="e.g. kyc_docs"
+                className="mt-1 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-9" />
+            </div>
+          </div>
+          <div className="bg-[#0a1410] rounded-xl p-3 border border-green-900/20 text-xs text-gray-400 space-y-1">
+            <p className="text-gray-300 font-medium">How KYC works:</p>
+            <p>1. Admin requests KYC from a user in the Users tab</p>
+            <p>2. User receives a notification and sees a KYC prompt in their profile</p>
+            <p>3. User uploads their ID/Passport directly to Cloudinary</p>
+            <p>4. Admin reviews the document and approves or rejects</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Button className="bg-green-600 hover:bg-green-500 gap-2 w-full sm:w-auto h-10"
+        disabled={extSaving}
+        onClick={saveExtended}>
+        <Save className="w-4 h-4" />
+        {extSaving ? "Saving…" : "Save Communication & KYC Settings"}
       </Button>
     </div>
   );

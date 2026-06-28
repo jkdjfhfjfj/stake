@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useListStakingPlans, useListStakes, useCreateStake, useBreakStake, useGetMe } from "@workspace/api-client-react";
 import { queryClient } from "@/lib/queryClient";
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import {
   TrendingUp, Clock, Shield, Zap, Repeat2, AlertTriangle, Wallet,
-  Star, CheckCircle, Calculator, CalendarDays, Award, ChevronDown, ChevronUp
+  Star, CheckCircle, Calculator, CalendarDays, Award, ChevronDown, ChevronUp, Timer
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -26,6 +26,43 @@ function tierBadge(plan: any) {
   if (roi >= 20) return { label: "Premium", color: "bg-yellow-900/40 text-yellow-400 border-yellow-700/40" };
   if (roi >= 10) return { label: "Growth", color: "bg-blue-900/40 text-blue-400 border-blue-700/40" };
   return { label: "Starter", color: "bg-green-900/40 text-green-400 border-green-700/40" };
+}
+
+function MaturityCountdown({ endDate }: { endDate: string }) {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const iv = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const diff = new Date(endDate).getTime() - now;
+  if (diff <= 0) {
+    return (
+      <span className="text-green-400 font-medium text-xs flex items-center gap-1">
+        <CheckCircle className="w-3 h-3" /> Ready to mature
+      </span>
+    );
+  }
+
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+
+  if (d > 1) {
+    return (
+      <span className="text-yellow-400 font-mono text-xs">
+        {d}d {h}h {m}m
+      </span>
+    );
+  }
+
+  return (
+    <span className="text-orange-400 font-mono text-xs">
+      {d > 0 ? `${d}d ` : ""}{String(h).padStart(2, "0")}:{String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}
+    </span>
+  );
 }
 
 function StakePlanCard({ plan, availableBalance, rank }: { plan: any; availableBalance: number; rank: number }) {
@@ -113,7 +150,6 @@ function StakePlanCard({ plan, availableBalance, rank }: { plan: any; availableB
           </div>
         </div>
 
-        {/* Quick return preview */}
         <div className="bg-[#0a1a0d] border border-green-900/25 rounded-xl p-3 text-xs overflow-hidden">
           <p className="text-gray-400 mb-2 truncate">Min stake: {formatKES(plan.minAmount)}</p>
           <div className="flex items-center justify-between gap-2">
@@ -132,15 +168,15 @@ function StakePlanCard({ plan, availableBalance, rank }: { plan: any; availableB
               Stake Now <Zap className="w-3.5 h-3.5 ml-1" />
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-[#0d1a10] border-green-900/40 text-white max-w-md">
+          <DialogContent className="bg-[#0d1a10] border-green-900/40 text-white max-w-md w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-green-400" />
                 Stake in {plan.name}
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-5 pt-2">
-              <div className="bg-green-900/20 rounded-xl p-4 text-sm space-y-2 border border-green-900/30">
+            <div className="space-y-4 pt-2 pb-2">
+              <div className="bg-green-900/20 rounded-xl p-3.5 text-sm space-y-2 border border-green-900/30">
                 <div className="flex justify-between text-gray-400">
                   <span>Duration</span><span className="text-white">{plan.durationDays} days</span>
                 </div>
@@ -157,7 +193,7 @@ function StakePlanCard({ plan, availableBalance, rank }: { plan: any; availableB
 
               <div>
                 <div className="flex justify-between mb-1.5">
-                  <Label>Amount to Stake (KES)</Label>
+                  <Label className="text-sm">Amount to Stake (KES)</Label>
                   <button onClick={() => setAmount(String(Math.min(availableBalance, plan.maxAmount || availableBalance)))} className="text-xs text-green-400 hover:text-green-300">
                     Max available
                   </button>
@@ -185,9 +221,9 @@ function StakePlanCard({ plan, availableBalance, rank }: { plan: any; availableB
                 )}
               </div>
 
-              {amountNum > 0 && amountNum > 0 && (
-                <div className="bg-green-900/20 rounded-xl p-4 border border-green-900/30 text-sm space-y-2">
-                  <div className="flex items-center gap-2 mb-2">
+              {amountNum > 0 && (
+                <div className="bg-green-900/20 rounded-xl p-3.5 border border-green-900/30 text-sm space-y-2">
+                  <div className="flex items-center gap-2 mb-1">
                     <Calculator className="w-4 h-4 text-green-400" />
                     <span className="font-medium text-white">Return Calculator</span>
                   </div>
@@ -259,9 +295,10 @@ function ActiveStakeCard({ stake }: { stake: any }) {
   const penaltyAmount = stake.principalAmount * (stake.plan.earlyWithdrawalPenalty / 100);
   const earlyReturnAmount = stake.principalAmount - penaltyAmount;
   const fullReturn = stake.principalAmount * (1 + stake.plan.roiPercent / 100);
+  const isNearMaturity = daysLeft <= 1;
 
   return (
-    <Card className="bg-[#0d1a10] border-green-900/30 hover:border-green-700/30 transition-colors">
+    <Card className={`bg-[#0d1a10] border-green-900/30 hover:border-green-700/30 transition-colors ${isNearMaturity ? "ring-1 ring-green-500/40" : ""}`}>
       <CardContent className="p-4 space-y-3">
         <div className="flex justify-between items-start">
           <div>
@@ -284,7 +321,10 @@ function ActiveStakeCard({ stake }: { stake: any }) {
         <div className="space-y-1">
           <div className="flex justify-between text-xs text-gray-400">
             <span>{daysElapsed}d elapsed</span>
-            <span className="font-medium text-white">{daysLeft} days left</span>
+            <span className="flex items-center gap-1">
+              <Timer className="w-3 h-3 text-yellow-400" />
+              <MaturityCountdown endDate={stake.endDate} />
+            </span>
           </div>
           <Progress value={progress} className="h-2 bg-green-900/30" />
           <div className="flex justify-between text-[10px] text-gray-500">
@@ -304,7 +344,7 @@ function ActiveStakeCard({ stake }: { stake: any }) {
           </div>
         </div>
 
-        <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors py-1">
+        <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-center gap-1 text-xs text-gray-500 hover:text-gray-300 py-1">
           {expanded ? <><ChevronUp className="w-3.5 h-3.5" /> Hide details</> : <><ChevronDown className="w-3.5 h-3.5" /> Show details</>}
         </button>
 
@@ -315,7 +355,7 @@ function ActiveStakeCard({ stake }: { stake: any }) {
                 <AlertTriangle className="w-3.5 h-3.5" /> Break Early ({stake.plan.earlyWithdrawalPenalty}% penalty)
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent className="bg-[#0d1a10] border-red-900/40 text-white">
+            <AlertDialogContent className="bg-[#0d1a10] border-red-900/40 text-white w-[calc(100vw-2rem)] max-w-sm">
               <AlertDialogHeader>
                 <AlertDialogTitle>Break Stake Early?</AlertDialogTitle>
                 <AlertDialogDescription className="text-gray-400 space-y-2">
@@ -426,7 +466,7 @@ export default function StakingPlansPage() {
                 <div className="divide-y divide-green-900/10">
                   {[...completedStakes, ...brokenStakes].map((stake: any) => (
                     <div key={stake.id} className="flex items-center gap-4 p-4 hover:bg-green-900/5 transition-colors">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
                         stake.status === "COMPLETED" ? "bg-green-900/30" : "bg-red-900/20"
                       }`}>
                         {stake.status === "COMPLETED"
@@ -438,14 +478,14 @@ export default function StakingPlansPage() {
                         <p className="font-medium text-white text-sm">{stake.plan.name}</p>
                         <p className="text-xs text-gray-500">{new Date(stake.createdAt).toLocaleDateString("en-KE")} → {new Date(stake.endDate).toLocaleDateString("en-KE")}</p>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         <p className="text-sm text-white font-medium">{formatKES(stake.principalAmount)}</p>
                         <Badge className={stake.status === "COMPLETED" ? "bg-green-900/30 text-green-400 border-0" : "bg-red-900/30 text-red-400 border-0"}>
                           {stake.status}
                         </Badge>
                       </div>
                       {stake.status === "COMPLETED" && (
-                        <div className="text-right hidden sm:block">
+                        <div className="text-right hidden sm:block shrink-0">
                           <p className="text-xs text-gray-500">Earned</p>
                           <p className="text-sm text-yellow-400 font-medium">+{formatKES(stake.principalAmount * stake.plan.roiPercent / 100)}</p>
                         </div>

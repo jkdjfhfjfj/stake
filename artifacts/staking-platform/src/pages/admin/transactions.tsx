@@ -4,7 +4,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowDownCircle, ArrowUpCircle, RefreshCcw, Search, PlayCircle } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowDownCircle, ArrowUpCircle, RefreshCcw, Search, Edit2, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { getToken } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -45,6 +48,8 @@ const TYPE_COLORS: Record<string, string> = {
   MANUAL_CREDIT: "bg-purple-900/30 text-purple-400",
   MANUAL_DEBIT: "bg-orange-900/30 text-orange-400",
   STAKE: "bg-yellow-900/30 text-yellow-400",
+  UNSTAKE: "bg-pink-900/30 text-pink-400",
+  REFERRAL_REWARD: "bg-teal-900/30 text-teal-400",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -59,6 +64,123 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   WITHDRAWAL: <ArrowUpCircle className="w-3.5 h-3.5 text-red-400" />,
   INTEREST: <RefreshCcw className="w-3.5 h-3.5 text-blue-400" />,
 };
+
+function EditTxDialog({ tx, onDone }: { tx: TxRow; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState(tx.status);
+  const [description, setDescription] = useState(tx.description ?? "");
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const update = useMutation({
+    mutationFn: async () => {
+      const res = await authedFetch(`/api/admin/transactions/${tx.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, description: description || undefined }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Transaction updated", variant: "success" });
+      qc.invalidateQueries({ queryKey: ["/api/admin/transactions"] });
+      setOpen(false);
+      onDone();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const statusChanged = status !== tx.status;
+  const descChanged = description !== (tx.description ?? "");
+  const hasChanges = statusChanged || descChanged;
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="text-gray-400 hover:text-white hover:bg-green-900/20 h-7 w-7 p-0"
+        onClick={() => setOpen(true)}
+        title="Edit transaction"
+      >
+        <Edit2 className="w-3.5 h-3.5" />
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="bg-[#0d1a10] border-green-900/40 text-white max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Edit Transaction #{tx.id}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            <div className="bg-[#0a1410] rounded-xl p-3 border border-green-900/20 space-y-1.5 text-xs text-gray-400">
+              <div className="flex justify-between">
+                <span>User</span>
+                <span className="text-white">{tx.userFullName ?? tx.userEmail.split("@")[0]}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Type</span>
+                <span className="text-white">{tx.type}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Amount</span>
+                <span className={tx.type === "DEPOSIT" || tx.type === "INTEREST" || tx.type === "MANUAL_CREDIT"
+                  ? "text-green-400 font-medium" : "text-red-400 font-medium"}>
+                  {formatKES(tx.amount)}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-gray-300 text-xs">Status</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0d1a10] border-green-900/40 text-white">
+                  {["PENDING", "COMPLETED", "FAILED", "REJECTED"].map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {statusChanged && status === "COMPLETED" && tx.type === "DEPOSIT" && (
+                <p className="text-xs text-green-400 mt-1 flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" /> Balance will be credited to user
+                </p>
+              )}
+              {statusChanged && status === "REJECTED" && tx.type === "WITHDRAWAL" && (
+                <p className="text-xs text-yellow-400 mt-1 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> Funds will be returned to user balance
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-gray-300 text-xs">Description / Note</Label>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Optional admin note"
+                className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-9 text-xs"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                className="flex-1 bg-green-600 hover:bg-green-500 h-9"
+                disabled={!hasChanges || update.isPending}
+                onClick={() => update.mutate()}
+              >
+                {update.isPending ? "Saving…" : "Save Changes"}
+              </Button>
+              <Button variant="outline" className="border-green-900/40 text-gray-400 h-9" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 export default function AdminTransactions() {
   const [search, setSearch] = useState("");
@@ -76,19 +198,20 @@ export default function AdminTransactions() {
     },
   });
 
-  const simulateComplete = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await authedFetch(`/api/admin/transactions/${id}/simulate-complete`, { method: "POST" });
+  const quickUpdate = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      const res = await authedFetch(`/api/admin/transactions/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
       return res.json();
     },
-    onSuccess: () => {
-      toast({ title: "Deposit marked complete", description: "Balance updated.", variant: "success" });
+    onSuccess: (_, vars) => {
+      toast({ title: `Transaction ${vars.status.toLowerCase()}`, variant: "success" });
       qc.invalidateQueries({ queryKey: ["/api/admin/transactions"] });
     },
-    onError: (e: any) => {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
-    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const filtered = txs.filter((t) => {
@@ -102,12 +225,11 @@ export default function AdminTransactions() {
     return matchSearch && matchType && matchStatus;
   });
 
-  const types = ["ALL", "DEPOSIT", "WITHDRAWAL", "INTEREST", "MANUAL_CREDIT", "MANUAL_DEBIT", "STAKE"];
+  const types = ["ALL", "DEPOSIT", "WITHDRAWAL", "INTEREST", "MANUAL_CREDIT", "MANUAL_DEBIT", "STAKE", "UNSTAKE", "REFERRAL_REWARD"];
   const statuses = ["ALL", "COMPLETED", "PENDING", "FAILED", "REJECTED"];
 
   return (
     <div className="mt-4 space-y-4">
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -123,7 +245,7 @@ export default function AdminTransactions() {
           onChange={(e) => setTypeFilter(e.target.value)}
           className="bg-[#0d1a10] border border-green-900/40 text-white text-sm rounded-md px-3 py-2 focus:outline-none focus:border-green-500"
         >
-          {types.map((t) => <option key={t} value={t}>{t === "ALL" ? "All Types" : t}</option>)}
+          {types.map((t) => <option key={t} value={t}>{t === "ALL" ? "All Types" : t.replace("_", " ")}</option>)}
         </select>
         <select
           value={statusFilter}
@@ -155,60 +277,88 @@ export default function AdminTransactions() {
                     <th className="text-left text-xs text-gray-400 px-4 py-3">Type</th>
                     <th className="text-right text-xs text-gray-400 px-4 py-3">Amount</th>
                     <th className="text-left text-xs text-gray-400 px-4 py-3">Status</th>
-                    <th className="text-left text-xs text-gray-400 px-4 py-3">Reference</th>
-                    <th className="text-left text-xs text-gray-400 px-4 py-3">Date</th>
-                    <th className="text-left text-xs text-gray-400 px-4 py-3">Action</th>
+                    <th className="text-left text-xs text-gray-400 px-4 py-3 hidden sm:table-cell">Reference</th>
+                    <th className="text-left text-xs text-gray-400 px-4 py-3 hidden md:table-cell">Date</th>
+                    <th className="text-left text-xs text-gray-400 px-4 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((t) => (
-                    <tr key={t.id} className="border-b border-green-900/10 hover:bg-green-900/5 transition-colors">
+                    <tr key={t.id} className="border-b border-green-900/10 hover:bg-green-900/5">
                       <td className="px-4 py-3">
                         <p className="text-white text-xs font-medium">{t.userFullName ?? t.userEmail.split("@")[0]}</p>
-                        <p className="text-gray-500 text-xs">{t.userEmail}</p>
+                        <p className="text-gray-500 text-[10px]">{t.userEmail}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <Badge className={`${TYPE_COLORS[t.type] ?? "bg-gray-700/30 text-gray-400"} border-0 gap-1`}>
+                        <Badge className={`${TYPE_COLORS[t.type] ?? "bg-gray-700/30 text-gray-400"} border-0 gap-1 text-[10px]`}>
                           {TYPE_ICONS[t.type]}
-                          {t.type.replace("_", " ")}
+                          {t.type.replace(/_/g, " ")}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className={t.type === "DEPOSIT" || t.type === "INTEREST" || t.type === "MANUAL_CREDIT"
-                          ? "text-green-400 font-medium"
-                          : "text-red-400 font-medium"}>
+                        <span className={t.type === "DEPOSIT" || t.type === "INTEREST" || t.type === "MANUAL_CREDIT" || t.type === "REFERRAL_REWARD"
+                          ? "text-green-400 font-medium text-xs" : "text-red-400 font-medium text-xs"}>
                           {formatKES(t.amount)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <Badge className={`${STATUS_COLORS[t.status] ?? ""} border-0`}>{t.status}</Badge>
+                        <Badge className={`${STATUS_COLORS[t.status] ?? ""} border-0 text-[10px]`}>{t.status}</Badge>
                       </td>
-                      <td className="px-4 py-3">
-                        <p className="text-gray-400 text-xs font-mono truncate max-w-[120px]">
+                      <td className="px-4 py-3 hidden sm:table-cell">
+                        <p className="text-gray-400 text-[10px] font-mono truncate max-w-[100px]">
                           {t.externalReference ?? "-"}
                         </p>
                         {t.description && (
-                          <p className="text-gray-600 text-xs truncate max-w-[120px]">{t.description}</p>
+                          <p className="text-gray-600 text-[10px] truncate max-w-[100px]">{t.description}</p>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-500">
-                        {new Date(t.createdAt).toLocaleDateString("en-KE")}
-                        <br />
-                        <span className="text-gray-600">{new Date(t.createdAt).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })}</span>
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        <p className="text-gray-500 text-xs">{new Date(t.createdAt).toLocaleDateString("en-KE")}</p>
+                        <p className="text-gray-600 text-[10px]">{new Date(t.createdAt).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })}</p>
                       </td>
                       <td className="px-4 py-3">
-                        {t.type === "DEPOSIT" && t.status === "PENDING" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2 text-xs border-green-900/40 text-green-400 hover:bg-green-900/20 gap-1"
-                            disabled={simulateComplete.isPending}
-                            onClick={() => simulateComplete.mutate(t.id)}
-                            title="Simulate deposit completion (dev testing)"
-                          >
-                            <PlayCircle className="w-3.5 h-3.5" /> Complete
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {t.status === "PENDING" && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-[10px] text-green-400 hover:bg-green-900/20 gap-1"
+                                disabled={quickUpdate.isPending}
+                                onClick={() => quickUpdate.mutate({ id: t.id, status: "COMPLETED" })}
+                                title="Mark Completed"
+                              >
+                                <CheckCircle className="w-3 h-3" />
+                                <span className="hidden sm:inline">Complete</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-[10px] text-red-400 hover:bg-red-900/20 gap-1"
+                                disabled={quickUpdate.isPending}
+                                onClick={() => quickUpdate.mutate({ id: t.id, status: "REJECTED" })}
+                                title="Reject"
+                              >
+                                <XCircle className="w-3 h-3" />
+                                <span className="hidden sm:inline">Reject</span>
+                              </Button>
+                            </>
+                          )}
+                          {t.status === "FAILED" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-[10px] text-yellow-400 hover:bg-yellow-900/20 gap-1"
+                              disabled={quickUpdate.isPending}
+                              onClick={() => quickUpdate.mutate({ id: t.id, status: "PENDING" })}
+                              title="Retry (set Pending)"
+                            >
+                              <RefreshCcw className="w-3 h-3" />
+                              <span className="hidden sm:inline">Retry</span>
+                            </Button>
+                          )}
+                          <EditTxDialog tx={t} onDone={() => {}} />
+                        </div>
                       </td>
                     </tr>
                   ))}

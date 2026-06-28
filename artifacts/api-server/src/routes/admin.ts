@@ -592,6 +592,176 @@ router.post("/admin/settings/test-payhero", requireAdmin, async (_req, res): Pro
   }
 });
 
+// ── Extended Settings (WhatsApp, Cloudinary) ────────────────────────────────
+const EXTENDED_SETTING_KEYS = ["whatsapp_number", "cloudinary_cloud_name", "cloudinary_upload_preset"];
+
+router.get("/admin/settings/extended", requireAdmin, async (_req, res): Promise<void> => {
+  const rows = await db.select().from(platformSettingsTable)
+    .where(inArray(platformSettingsTable.key, EXTENDED_SETTING_KEYS as any));
+  const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  res.json({
+    whatsappNumber: map["whatsapp_number"] ?? "",
+    cloudinaryCloudName: map["cloudinary_cloud_name"] ?? "",
+    cloudinaryUploadPreset: map["cloudinary_upload_preset"] ?? "",
+  });
+});
+
+router.patch("/admin/settings/extended", requireAdmin, async (req, res): Promise<void> => {
+  const { whatsappNumber, cloudinaryCloudName, cloudinaryUploadPreset } = req.body as Record<string, string>;
+  const adminRef = String(req.userId!);
+  const keyMap: Record<string, string> = {
+    whatsappNumber: "whatsapp_number",
+    cloudinaryCloudName: "cloudinary_cloud_name",
+    cloudinaryUploadPreset: "cloudinary_upload_preset",
+  };
+  for (const [field, dbKey] of Object.entries(keyMap)) {
+    const val = req.body[field];
+    if (val !== undefined) {
+      await db.insert(platformSettingsTable)
+        .values({ key: dbKey, value: String(val), updatedBy: adminRef })
+        .onConflictDoUpdate({ target: platformSettingsTable.key, set: { value: String(val), updatedBy: adminRef } });
+    }
+  }
+  await db.insert(auditLogsTable).values({
+    adminId: req.userId!,
+    action: "Updated extended platform settings",
+    note: Object.keys(req.body).join(", "),
+  });
+  res.json({ whatsappNumber, cloudinaryCloudName, cloudinaryUploadPreset });
+});
+
+// ── Public Settings (no auth, returns non-sensitive config) ─────────────────
+router.get("/settings/public", async (_req, res): Promise<void> => {
+  const rows = await db.select().from(platformSettingsTable)
+    .where(inArray(platformSettingsTable.key, ["whatsapp_number", "cloudinary_cloud_name", "cloudinary_upload_preset"] as any));
+  const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  res.json({
+    whatsappNumber: map["whatsapp_number"] ?? "",
+    cloudinaryCloudName: map["cloudinary_cloud_name"] ?? "",
+    cloudinaryUploadPreset: map["cloudinary_upload_preset"] ?? "",
+  });
+});
+
+// ── Transaction Update ────────────────────────────────────────────────────────
+router.patch("/admin/transactions/:id", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { status, description } = req.body as { status?: string; description?: string };
+  const allowed = ["PENDING", "COMPLETED", "FAILED", "REJECTED"];
+  if (status && !allowed.includes(status)) {
+    res.status(400).json({ error: "Invalid status" }); return;
+  }
+  const tx = await db.query.transactionsTable.findFirst({ where: eq(transactionsTable.id, id) });
+  if (!tx) { res.status(404).json({ error: "Transaction not found" }); return; }
+
+  const updates: any = {};
+  if (status) updates.status = status;
+  if (description !== undefined) updates.description = description;
+
+  const [updated] = await db.update(transactionsTable).set(updates).where(eq(transactionsTable.id, id)).returning();
+
+  if (status === "COMPLETED" && tx.type === "DEPOSIT" && tx.status !== "COMPLETED") {
+    const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, tx.userId) });
+    if (user) {
+      await db.update(usersTable)
+        .set({ availableBalance: (Number(user.availableBalance) + Number(tx.amount)).toFixed(2) })
+        .where(eq(usersTable.id, tx.userId));
+      await createNotification({ userId: tx.userId, type: "DEPOSIT", title: "Deposit Successful",
+        message: `KES ${Number(tx.amount).toLocaleString("en-KE", { minimumFractionDigits: 2 })} has been credited to your account.` });
+    }
+  }
+  if (status === "REJECTED" && tx.type === "WITHDRAWAL" && tx.status === "PENDING") {
+    const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, tx.userId) });
+    if (user) {
+      await db.update(usersTable)
+        .set({ availableBalance: (Number(user.availableBalance) + Number(tx.amount)).toFixed(2) })
+        .where(eq(usersTable.id, tx.userId));
+    }
+  }
+
+  await db.insert(auditLogsTable).values({
+    adminId: req.userId!,
+    action: `Updated transaction #${id}: ${JSON.stringify(updates)}`,
+    targetUserId: tx.userId,
+  });
+
+  const userRow = await db.query.usersTable.findFirst({ where: eq(usersTable.id, updated.userId) });
+  res.json({
+    id: updated.id, userId: updated.userId,
+    userEmail: userRow?.email ?? "", userFullName: userRow?.fullName ?? null,
+    type: updated.type, amount: Number(updated.amount), status: updated.status,
+    description: updated.description ?? null, phoneNumber: updated.phoneNumber ?? null,
+    externalReference: updated.externalReference ?? null, createdAt: updated.createdAt.toISOString(),
+  });
+});
+
+// ── User Stakes (admin view) ──────────────────────────────────────────────────
+router.get("/admin/users/:id/stakes", requireAdmin, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const stakes = await db.query.stakesTable.findMany({
+    where: eq(stakesTable.userId, userId),
+    with: { plan: true },
+    orderBy: (t, { desc }) => [desc(t.createdAt)],
+  });
+  res.json(stakes.map((s) => ({
+    id: s.id, userId: s.userId, planId: s.planId,
+    planName: s.plan.name, roiPercent: Number(s.plan.roiPercent),
+    durationDays: s.plan.durationDays,
+    principalAmount: Number(s.principalAmount),
+    currentValue: Number(s.currentValue),
+    accruedInterest: Number(s.accruedInterest),
+    startDate: s.startDate.toISOString(),
+    endDate: s.endDate.toISOString(),
+    status: s.status, autoInvest: s.autoInvest,
+    createdAt: s.createdAt.toISOString(),
+  })));
+});
+
+// ── KYC Admin Controls ────────────────────────────────────────────────────────
+router.post("/admin/users/:id/kyc/request", requireAdmin, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  await db.update(usersTable)
+    .set({ kycStatus: "REQUESTED", kycRequestedAt: new Date() })
+    .where(eq(usersTable.id, userId));
+
+  await createNotification({ userId, type: "ADMIN_MESSAGE", title: "KYC Verification Required",
+    message: "Your account requires identity verification. Please upload a clear photo of your National ID or Passport from your Profile page." });
+
+  await db.insert(auditLogsTable).values({
+    adminId: req.userId!, action: `Requested KYC from user #${userId}`, targetUserId: userId,
+  });
+  res.json({ ok: true });
+});
+
+router.patch("/admin/users/:id/kyc/review", requireAdmin, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const { decision, note } = req.body as { decision: "APPROVED" | "REJECTED"; note?: string };
+  if (!["APPROVED", "REJECTED"].includes(decision)) {
+    res.status(400).json({ error: "decision must be APPROVED or REJECTED" }); return;
+  }
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  await db.update(usersTable).set({ kycStatus: decision }).where(eq(usersTable.id, userId));
+
+  await createNotification({ userId, type: "ADMIN_MESSAGE",
+    title: decision === "APPROVED" ? "KYC Approved ✓" : "KYC Rejected",
+    message: decision === "APPROVED"
+      ? "Your identity verification has been approved. Your account is now fully verified."
+      : `Your KYC submission was rejected. ${note ? `Reason: ${note}.` : ""} Please re-upload a clearer document.` });
+
+  await db.insert(auditLogsTable).values({
+    adminId: req.userId!, action: `KYC ${decision} for user #${userId}`, targetUserId: userId, note: note ?? null,
+  });
+  res.json({ ok: true });
+});
+
 // ── Referrals ──────────────────────────────────────────────────────────────
 router.get("/admin/referrals", requireAdmin, async (_req, res): Promise<void> => {
   const referrals = await db

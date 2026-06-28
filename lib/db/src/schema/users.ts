@@ -3,6 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const roleEnum = pgEnum("role", ["USER", "ADMIN"]);
+export const kycStatusEnum = pgEnum("kyc_status", ["NONE", "REQUESTED", "SUBMITTED", "APPROVED", "REJECTED"]);
 
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -20,6 +21,9 @@ export const usersTable = pgTable("users", {
   referredBy: text("referred_by"),
   onboardingComplete: boolean("onboarding_complete").notNull().default(false),
   isLocked: boolean("is_locked").notNull().default(false),
+  kycStatus: kycStatusEnum("kyc_status").notNull().default("NONE"),
+  kycDocumentUrl: text("kyc_document_url"),
+  kycRequestedAt: timestamp("kyc_requested_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

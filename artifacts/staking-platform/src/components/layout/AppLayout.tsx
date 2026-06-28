@@ -1,7 +1,8 @@
 import { Link, useLocation } from "wouter";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard, TrendingUp, ArrowLeftRight, Users,
-  Bell, LogOut, TrendingUpIcon, Settings, Shield, Zap, ChevronRight,
+  Bell, LogOut, TrendingUpIcon, Settings, Shield, Zap, ChevronRight, MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useListNotifications, useGetMe } from "@workspace/api-client-react";
@@ -18,7 +19,6 @@ const navItems = [
   { href: "/profile",       icon: Settings,         label: "Profile" },
 ];
 
-/* Bottom tab items for mobile (5 key pages) */
 const bottomTabs = [
   { href: "/dashboard",    icon: LayoutDashboard, label: "Home" },
   { href: "/staking",      icon: TrendingUp,      label: "Stake" },
@@ -26,6 +26,35 @@ const bottomTabs = [
   { href: "/referrals",    icon: Users,           label: "Refer" },
   { href: "/profile",      icon: Settings,        label: "Profile" },
 ];
+
+function WhatsAppWidget() {
+  const [phone, setPhone] = useState("");
+
+  useEffect(() => {
+    fetch("/api/settings/public")
+      .then((r) => r.json())
+      .then((d) => { if (d.whatsappNumber) setPhone(d.whatsappNumber); })
+      .catch(() => {});
+  }, []);
+
+  if (!phone) return null;
+
+  const msg = encodeURIComponent("Hi, I need help with my StakeKE account.");
+  const url = `https://wa.me/${phone.replace(/\D/g, "")}?text=${msg}`;
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="fixed bottom-20 md:bottom-6 right-4 z-50 w-12 h-12 bg-[#25D366] rounded-full flex items-center justify-center shadow-lg hover:bg-[#1ebe5d] active:scale-95"
+      title="Chat with support on WhatsApp"
+      aria-label="WhatsApp Support"
+    >
+      <MessageCircle className="w-6 h-6 text-white fill-white" />
+    </a>
+  );
+}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [location]  = useLocation();
@@ -46,17 +75,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     : user?.email?.[0]?.toUpperCase() ?? "U";
 
   return (
-    /*
-     * GPU NOTE: No CSS transitions on position:fixed elements.
-     * Desktop sidebar is always visible (no transform toggle).
-     * Mobile uses a bottom tab bar — no sidebar, no overlay, no transform animation.
-     * This eliminates Android Chrome GPU compositing glitches.
-     */
     <div className="bg-[#060d08] min-h-screen">
 
       {/* ══ DESKTOP SIDEBAR (md+) — always rendered, no transform ══ */}
       <aside className="hidden md:flex fixed inset-y-0 left-0 z-40 w-64 flex-col bg-[#080f0a] border-r border-green-900/25">
-        {/* Logo */}
         <div className="h-16 px-5 flex items-center border-b border-green-900/20 shrink-0">
           <Link href="/dashboard" className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-green-600 flex items-center justify-center shadow-lg shadow-green-950/60">
@@ -71,7 +93,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
 
-        {/* Balance pill */}
         {me && (
           <div className="mx-3 mt-4 p-3.5 rounded-2xl bg-[#0d2010] border border-green-800/30 shrink-0">
             <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-0.5">Available Balance</p>
@@ -81,7 +102,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider px-2 mb-2">Menu</p>
           {navItems.map((item) => {
@@ -111,7 +131,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             );
           })}
 
-          {/* Admin link */}
           {me?.role === "ADMIN" && (
             <>
               <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider px-2 mt-5 mb-2">Administration</p>
@@ -131,7 +150,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           )}
         </nav>
 
-        {/* User footer */}
         <div className="p-3 border-t border-green-900/20 shrink-0">
           <Link href="/profile">
             <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-green-900/10 hover:bg-green-900/20 cursor-pointer mb-1">
@@ -183,9 +201,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      {/* ══ MOBILE BOTTOM TAB BAR ══
-          Pure display — no transforms, no transitions, no GPU compositing.
-          Solid background, standard position:fixed at bottom. */}
+      {/* ══ MOBILE BOTTOM TAB BAR ══ */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-16 bg-[#080f0a] border-t border-green-900/25 flex items-stretch">
         {bottomTabs.map((tab) => {
           const isActive = location === tab.href ||
@@ -198,7 +214,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               )}>
                 <tab.icon className="w-5 h-5" />
                 <span className="text-[9px] font-semibold leading-none">{tab.label}</span>
-                {/* Active indicator dot — no animation */}
                 {isActive && <span className="absolute bottom-1.5 w-1 h-1 rounded-full bg-green-400" />}
               </div>
             </Link>
@@ -206,10 +221,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         })}
       </nav>
 
-      {/* ══ MAIN CONTENT ══
-          md:ml-64 clears desktop sidebar.
-          pt-14 clears mobile top bar.
-          pb-20 clears mobile bottom tab bar. */}
+      {/* ══ WHATSAPP FLOAT WIDGET ══ */}
+      <WhatsAppWidget />
+
+      {/* ══ MAIN CONTENT ══ */}
       <main className="md:ml-64 pt-14 md:pt-0 pb-20 md:pb-0">
         <div className="p-4 md:p-6 max-w-6xl mx-auto">
           {children}
