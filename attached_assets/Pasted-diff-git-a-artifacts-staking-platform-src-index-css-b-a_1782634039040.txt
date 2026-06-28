@@ -1,0 +1,178 @@
+diff --git a/artifacts/staking-platform/src/index.css b/artifacts/staking-platform/src/index.css
+index 397c47f21d374384a241b7f1843718255af3b55c..6eda0314d039eee5424a7e943d8800721dd48192 100644
+--- a/artifacts/staking-platform/src/index.css
++++ b/artifacts/staking-platform/src/index.css
+@@ -130,63 +130,56 @@
+   --destructive-foreground: 0 0% 100%;
+   --input: 138 25% 16%;
+   --ring: 142 71% 45%;
+   --chart-1: 142 71% 45%;
+   --chart-2: 210 70% 60%;
+   --chart-3: 280 60% 60%;
+   --chart-4: 40 80% 55%;
+   --chart-5: 0 70% 55%;
+ 
+   --app-font-sans: 'Inter', sans-serif;
+   --app-font-serif: Georgia, serif;
+   --app-font-mono: Menlo, monospace;
+   --radius: .5rem;
+   --shadow-2xs: 0px 1px 2px 0px rgba(0,0,0,0.3);
+   --shadow-xs: 0px 1px 3px 0px rgba(0,0,0,0.35);
+   --shadow-sm: 0px 2px 4px 0px rgba(0,0,0,0.4);
+   --shadow: 0px 2px 6px 0px rgba(0,0,0,0.45);
+   --shadow-md: 0px 4px 8px 0px rgba(0,0,0,0.5);
+   --shadow-lg: 0px 8px 16px 0px rgba(0,0,0,0.55);
+   --shadow-xl: 0px 16px 24px 0px rgba(0,0,0,0.6);
+   --shadow-2xl: 0px 24px 32px 0px rgba(0,0,0,0.65);
+   --tracking-normal: 0em;
+   --spacing: 0.25rem;
+ 
+   --sidebar-primary-border: hsl(var(--sidebar-primary));
+-  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+   --sidebar-accent-border: hsl(var(--sidebar-accent));
+-  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+   --primary-border: hsl(var(--primary));
+-  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+   --secondary-border: hsl(var(--secondary));
+-  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+   --muted-border: hsl(var(--muted));
+-  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+   --accent-border: hsl(var(--accent));
+-  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+   --destructive-border: hsl(var(--destructive));
+-  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+ }
+ 
+ .dark {
+   --button-outline: rgba(255,255,255, .10);
+   --badge-outline: rgba(255,255,255, .05);
+   --opaque-button-border-intensity: 9;
+   --elevate-1: rgba(255,255,255, .04);
+   --elevate-2: rgba(255,255,255, .09);
+ 
+   --background: 138 30% 5%;
+   --foreground: 140 20% 92%;
+   --border: 138 25% 14%;
+   --card: 138 28% 7%;
+   --card-foreground: 140 20% 92%;
+   --card-border: 138 25% 14%;
+   --sidebar: 138 30% 6%;
+   --sidebar-foreground: 140 20% 88%;
+   --sidebar-border: 138 25% 12%;
+   --sidebar-primary: 142 71% 45%;
+   --sidebar-primary-foreground: 0 0% 100%;
+   --sidebar-accent: 138 28% 10%;
+   --sidebar-accent-foreground: 140 20% 88%;
+   --sidebar-ring: 142 71% 45%;
+   --popover: 138 30% 6%;
+   --popover-foreground: 140 20% 92%;
+@@ -197,63 +190,56 @@
+   --secondary-foreground: 140 20% 88%;
+   --muted: 138 25% 9%;
+   --muted-foreground: 138 10% 55%;
+   --accent: 138 28% 10%;
+   --accent-foreground: 140 20% 88%;
+   --destructive: 0 70% 50%;
+   --destructive-foreground: 0 0% 100%;
+   --input: 138 25% 16%;
+   --ring: 142 71% 45%;
+   --chart-1: 142 71% 45%;
+   --chart-2: 210 70% 60%;
+   --chart-3: 280 60% 60%;
+   --chart-4: 40 80% 55%;
+   --chart-5: 0 70% 55%;
+ 
+   --shadow-2xs: 0px 1px 2px 0px rgba(0,0,0,0.4);
+   --shadow-xs: 0px 1px 3px 0px rgba(0,0,0,0.45);
+   --shadow-sm: 0px 2px 4px 0px rgba(0,0,0,0.5);
+   --shadow: 0px 2px 6px 0px rgba(0,0,0,0.55);
+   --shadow-md: 0px 4px 8px 0px rgba(0,0,0,0.6);
+   --shadow-lg: 0px 8px 16px 0px rgba(0,0,0,0.65);
+   --shadow-xl: 0px 16px 24px 0px rgba(0,0,0,0.7);
+   --shadow-2xl: 0px 24px 32px 0px rgba(0,0,0,0.75);
+ 
+   --sidebar-primary-border: hsl(var(--sidebar-primary));
+-  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+   --sidebar-accent-border: hsl(var(--sidebar-accent));
+-  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+   --primary-border: hsl(var(--primary));
+-  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+   --secondary-border: hsl(var(--secondary));
+-  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+   --muted-border: hsl(var(--muted));
+-  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+   --accent-border: hsl(var(--accent));
+-  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+   --destructive-border: hsl(var(--destructive));
+-  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+ }
+ 
+ @layer base {
+   * {
+     @apply border-border;
+   }
+ 
+   body {
+     @apply font-sans antialiased bg-background text-foreground;
+   }
+ }
+ 
+ @layer utilities {
+   input[type="search"]::-webkit-search-cancel-button {
+     @apply hidden;
+   }
+ 
+   [contenteditable][data-placeholder]:empty::before {
+     content: attr(data-placeholder);
+     color: hsl(var(--muted-foreground));
+     pointer-events: none;
+   }
+ 
+   .no-default-hover-elevate {}
+   .no-default-active-elevate {}
+@@ -292,25 +278,45 @@
+     pointer-events: none;
+     position: absolute;
+     inset: 0px;
+     border-radius: inherit;
+     z-index: 999;
+   }
+ 
+   .hover-elevate:hover:not(.no-default-hover-elevate)::after,
+   .active-elevate:active:not(.no-default-active-elevate)::after {
+     background-color: var(--elevate-1);
+   }
+ 
+   .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
+   .active-elevate-2:active:not(.no-default-active-elevate)::after {
+     background-color: var(--elevate-2);
+   }
+ 
+   .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
+   .border.active-elevate:not(.no-active-interaction-elevate)::after,
+   .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
+   .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
+   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
+     inset: -1px;
+   }
+ }
++
++/* Android Chrome on low-end/small screens can corrupt composited layers when
++   many rounded controls create high-z hover/active pseudo-elements while fixed
++   mobile bars are present. Touch devices do not need hover elevation, so keep
++   those controls in the normal paint flow on coarse pointers. */
++@media (hover: none) and (pointer: coarse) {
++  .hover-elevate:not(.no-default-hover-elevate),
++  .active-elevate:not(.no-default-active-elevate),
++  .hover-elevate-2:not(.no-default-hover-elevate),
++  .active-elevate-2:not(.no-default-active-elevate) {
++    z-index: auto;
++  }
++
++  .hover-elevate:not(.no-default-hover-elevate)::after,
++  .active-elevate:not(.no-default-active-elevate)::after,
++  .hover-elevate-2:not(.no-default-hover-elevate)::after,
++  .active-elevate-2:not(.no-default-active-elevate)::after {
++    content: none;
++  }
++}

@@ -25,3 +25,32 @@ Never use `transition-transform`, `backdrop-filter`, `blur-*`, `will-change`, or
 - `animate-pulse`, `animate-spin` (use sparingly, only on isolated small icons)
 - `hover:scale-*`, `hover:translate-*`
 - `group-hover:scale-*`, `group-hover:translate-*`
+
+## index.css rules (confirmed fixes for Android Chrome glitches)
+
+### 1. Remove CSS relative color syntax from border vars
+The `hsl(from hsl(...) h s calc(l + ...) / alpha)` CSS relative color syntax is NOT supported
+on older Android Chrome (pre-v119). Remove the duplicate override lines — keep only the plain
+`hsl(var(--...))` fallback for each `--*-border` variable in both `:root` and `.dark`.
+
+### 2. Disable elevation pseudo-elements on touch devices
+The `hover-elevate` / `active-elevate` pseudo-elements use `z-index: 999` and `position: absolute`
+with `content: ""`. On Android Chrome with fixed bars present, these create high-z composited
+layers on EVERY interactive control, triggering a full repaint storm. Add a media query guard:
+
+```css
+@media (hover: none) and (pointer: coarse) {
+  .hover-elevate:not(.no-default-hover-elevate),
+  .active-elevate:not(.no-default-active-elevate),
+  .hover-elevate-2:not(.no-default-hover-elevate),
+  .active-elevate-2:not(.no-default-active-elevate) {
+    z-index: auto;
+  }
+  .hover-elevate:not(.no-default-hover-elevate)::after,
+  .active-elevate:not(.no-default-active-elevate)::after,
+  .hover-elevate-2:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:not(.no-default-active-elevate)::after {
+    content: none;
+  }
+}
+```
