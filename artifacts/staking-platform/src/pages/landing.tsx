@@ -94,7 +94,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#060d08] text-white overflow-x-hidden">
       {/* ── Sticky Nav ─────────────────────────────────────────────── */}
-      <nav className="sticky top-0 z-50 border-b border-green-900/20 bg-[#060d08]/90 backdrop-blur-md px-4 sm:px-6 py-4">
+      <nav className="sticky top-0 z-50 border-b border-green-900/20 bg-[#060d08] px-4 sm:px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-green-600 flex items-center justify-center shadow-lg shadow-green-900/40">
@@ -124,11 +124,10 @@ export default function LandingPage() {
 
       {/* ── Hero ───────────────────────────────────────────────────── */}
       <section className="relative pt-20 pb-24 px-4 sm:px-6 overflow-hidden">
-        {/* Background glow blobs */}
+        {/* Background radial accents — no blur, safe on all Android browsers */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-green-900/20 rounded-full blur-3xl" />
-          <div className="absolute top-40 right-0 w-96 h-96 bg-emerald-900/15 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-80 h-80 bg-green-950/30 rounded-full blur-3xl" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[300px] bg-green-900/8 rounded-full" />
+          <div className="absolute top-40 right-0 w-96 h-96 bg-emerald-900/6 rounded-full" />
         </div>
 
         <div className="relative max-w-5xl mx-auto text-center">
@@ -409,7 +408,7 @@ export default function LandingPage() {
       <section className="py-24 px-4 sm:px-6 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-green-950/10 to-transparent" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-green-900/15 rounded-full blur-3xl" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-green-900/8 rounded-full" />
         </div>
         <div className="relative max-w-2xl mx-auto text-center">
           <div className="w-16 h-16 rounded-2xl bg-green-600 flex items-center justify-center mx-auto mb-6 shadow-xl shadow-green-950/50">

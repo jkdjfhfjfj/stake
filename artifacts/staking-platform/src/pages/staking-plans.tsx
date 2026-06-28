@@ -114,15 +114,15 @@ function StakePlanCard({ plan, availableBalance, rank }: { plan: any; availableB
         </div>
 
         {/* Quick return preview */}
-        <div className="bg-green-900/10 border border-green-900/20 rounded-xl p-3 text-xs">
-          <p className="text-gray-400 mb-1">If you stake {formatKES(plan.minAmount)}:</p>
-          <div className="flex justify-between">
-            <span className="text-gray-500">You receive</span>
-            <span className="text-green-400 font-semibold">{formatKES(plan.minAmount * (1 + roi / 100))}</span>
+        <div className="bg-[#0a1a0d] border border-green-900/25 rounded-xl p-3 text-xs overflow-hidden">
+          <p className="text-gray-400 mb-2 truncate">Min stake: {formatKES(plan.minAmount)}</p>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-gray-500 shrink-0">You receive</span>
+            <span className="text-green-400 font-semibold text-right">{formatKES(plan.minAmount * (1 + roi / 100))}</span>
           </div>
-          <div className="flex justify-between mt-0.5">
-            <span className="text-gray-500">Profit</span>
-            <span className="text-yellow-400">+{formatKES(plan.minAmount * (roi / 100))}</span>
+          <div className="flex items-center justify-between gap-2 mt-1">
+            <span className="text-gray-500 shrink-0">Profit</span>
+            <span className="text-yellow-400 font-semibold text-right">+{formatKES(plan.minAmount * (roi / 100))}</span>
           </div>
         </div>
 

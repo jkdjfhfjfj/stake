@@ -27,7 +27,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { data: notifications } = useListNotifications();
   const { data: me } = useGetMe();
-  const unreadCount = notifications?.filter((n) => !n.isRead).length ?? 0;
+  const unreadCount = notifications?.filter((n: { isRead: boolean }) => !n.isRead).length ?? 0;
 
   const handleLogout = () => {
     logout();
@@ -174,7 +174,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm"
+          className="fixed inset-0 bg-black/70 z-40 md:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
