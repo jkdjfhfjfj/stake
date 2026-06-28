@@ -132,7 +132,7 @@ export default function LandingPage() {
 
         <div className="relative max-w-5xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-green-900/30 border border-green-800/40 rounded-full px-4 py-1.5 text-sm text-green-300 mb-8">
-            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-green-400" />
             🇰🇪 Kenya's Premier M-Pesa Staking Platform
           </div>
 
@@ -155,7 +155,7 @@ export default function LandingPage() {
             <Link href="/register">
               <Button size="lg" className="bg-green-600 hover:bg-green-500 h-13 px-8 text-base font-bold shadow-xl shadow-green-950/50 group">
                 Start Staking Today
-                <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="ml-2 w-4 h-4" />
               </Button>
             </Link>
             <button onClick={() => scrollTo("how")}
@@ -209,7 +209,7 @@ export default function LandingPage() {
 
           <div className="grid md:grid-cols-3 gap-6">
             {plans.map((plan) => (
-              <div key={plan.name} className={`relative rounded-3xl bg-gradient-to-b ${plan.gradient} border ${plan.border} p-7 flex flex-col group hover:scale-[1.02] transition-transform duration-200`}>
+              <div key={plan.name} className={`relative rounded-3xl bg-gradient-to-b ${plan.gradient} border ${plan.border} p-7 flex flex-col group`}>
                 {plan.tag && (
                   <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
                     <span className="bg-green-600 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg">
@@ -360,7 +360,7 @@ export default function LandingPage() {
               },
             ].map((f) => (
               <div key={f.title} className="flex gap-4 p-6 rounded-2xl bg-[#0a1408] border border-green-900/20 hover:border-green-800/30 transition-colors group">
-                <div className={`w-10 h-10 rounded-xl ${f.bg} border border-green-900/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform`}>
+                <div className={`w-10 h-10 rounded-xl ${f.bg} border border-green-900/20 flex items-center justify-center shrink-0`}>
                   <f.icon className={`w-5 h-5 ${f.color}`} />
                 </div>
                 <div>
@@ -426,7 +426,7 @@ export default function LandingPage() {
             <Link href="/register">
               <Button size="lg" className="bg-green-600 hover:bg-green-500 h-14 px-10 text-lg font-black shadow-2xl shadow-green-950/60 group">
                 Create Free Account
-                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
             </Link>
             <Link href="/login">

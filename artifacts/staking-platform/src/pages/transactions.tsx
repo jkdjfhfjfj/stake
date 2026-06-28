@@ -105,7 +105,7 @@ export default function TransactionsPage() {
 
         {isLoading ? (
           <div className="space-y-2">
-            {[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-[#0d1a10] rounded-xl border border-green-900/20 animate-pulse" />)}
+            {[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-[#0d1a10] rounded-xl border border-green-900/20" />)}
           </div>
         ) : filtered.length === 0 ? (
           <Card className="bg-[#0d1a10] border-green-900/30">

@@ -1,2 +1,3 @@
 - [Staking Platform workflow fix](staking-platform-workflow.md) — restart_workflow/configureWorkflow with waitForPort always fails; use configureWorkflow WITHOUT waitForPort.
 - [Auth: email/password + JWT](auth-jwt.md) — Clerk fully removed; custom JWT auth with bcryptjs + jsonwebtoken. Covers DB, API, and frontend patterns.
+- [Android Chrome GPU rendering fix](android-gpu-fix.md) — transition-transform on position:fixed sidebar causes full-page scan-line glitch; fix is bottom tab bar on mobile + ban all blur/transform animations.

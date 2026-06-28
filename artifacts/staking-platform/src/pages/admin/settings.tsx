@@ -87,7 +87,7 @@ export default function AdminSettings() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        {[...Array(2)].map((_, i) => <div key={i} className="h-40 bg-[#0d1a10] rounded-xl border border-green-900/20 animate-pulse" />)}
+        {[...Array(2)].map((_, i) => <div key={i} className="h-40 bg-[#0d1a10] rounded-xl border border-green-900/20" />)}
       </div>
     );
   }

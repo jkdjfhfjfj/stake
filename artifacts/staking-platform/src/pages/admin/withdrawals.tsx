@@ -92,7 +92,7 @@ export default function AdminWithdrawals() {
     return (
       <div className="space-y-3">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-20 bg-[#0d1a10] rounded-xl border border-green-900/20 animate-pulse" />
+          <div key={i} className="h-20 bg-[#0d1a10] rounded-xl border border-green-900/20" />
         ))}
       </div>
     );

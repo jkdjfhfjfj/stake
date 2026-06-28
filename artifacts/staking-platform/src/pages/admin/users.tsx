@@ -159,7 +159,7 @@ export default function AdminUsers() {
     return (
       <div className="space-y-3">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-16 bg-[#0d1a10] rounded-xl border border-green-900/20 animate-pulse" />
+          <div key={i} className="h-16 bg-[#0d1a10] rounded-xl border border-green-900/20" />
         ))}
       </div>
     );

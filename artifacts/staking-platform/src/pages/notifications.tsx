@@ -77,7 +77,7 @@ export default function NotificationsPage() {
 
         {isLoading ? (
           <div className="space-y-2">
-            {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-[#0d1a10] rounded-xl border border-green-900/20 animate-pulse" />)}
+            {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-[#0d1a10] rounded-xl border border-green-900/20" />)}
           </div>
         ) : notifications.length === 0 ? (
           <Card className="bg-[#0d1a10] border-green-900/30">

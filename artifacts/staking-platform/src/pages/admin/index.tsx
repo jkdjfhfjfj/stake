@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Link, useLocation } from "wouter";
 import AppLayout from "@/components/layout/AppLayout";
-import { useGetMe } from "@workspace/api-client-react";
+import { useGetMe, useGetAdminAnalytics } from "@workspace/api-client-react";
+import { getToken } from "@/lib/auth";
 import {
   Shield, Users, BarChart3, ArrowUpRight, Settings, FileText,
-  GitBranch, ArrowLeftRight, Menu, X, ChevronRight, TrendingUp,
-  Layers, Activity, Bell
+  GitBranch, ArrowLeftRight, ChevronRight,
+  Layers, RefreshCw, TrendingUp, Wallet, Activity,
 } from "lucide-react";
 import AdminAnalytics from "./analytics";
 import AdminUsers from "./users";
@@ -16,24 +16,59 @@ import AdminReferrals from "./referrals";
 import AdminTransactions from "./transactions";
 import AdminPlans from "./plans";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
 
 type Tab = "analytics" | "users" | "transactions" | "withdrawals" | "referrals" | "plans" | "settings" | "audit";
 
-const tabs: { id: Tab; icon: any; label: string; description: string; color: string }[] = [
-  { id: "analytics", icon: BarChart3, label: "Analytics", description: "Platform metrics & charts", color: "text-blue-400" },
-  { id: "users", icon: Users, label: "Users", description: "Manage user accounts", color: "text-green-400" },
-  { id: "transactions", icon: ArrowLeftRight, label: "Transactions", description: "All platform transactions", color: "text-yellow-400" },
-  { id: "withdrawals", icon: ArrowUpRight, label: "Withdrawals", description: "Approve & disburse", color: "text-orange-400" },
-  { id: "referrals", icon: GitBranch, label: "Referrals", description: "Referral network & payouts", color: "text-purple-400" },
-  { id: "plans", icon: Layers, label: "Staking Plans", description: "Create & manage plans", color: "text-cyan-400" },
-  { id: "settings", icon: Settings, label: "Settings", description: "PayHero & platform config", color: "text-gray-400" },
-  { id: "audit", icon: FileText, label: "Audit Logs", description: "Admin action history", color: "text-red-400" },
+const tabs: { id: Tab; icon: any; label: string; color: string }[] = [
+  { id: "analytics",    icon: BarChart3,      label: "Analytics",      color: "text-blue-400"   },
+  { id: "users",        icon: Users,          label: "Users",          color: "text-green-400"  },
+  { id: "transactions", icon: ArrowLeftRight, label: "Transactions",   color: "text-yellow-400" },
+  { id: "withdrawals",  icon: ArrowUpRight,   label: "Withdrawals",    color: "text-orange-400" },
+  { id: "referrals",    icon: GitBranch,      label: "Referrals",      color: "text-purple-400" },
+  { id: "plans",        icon: Layers,         label: "Plans",          color: "text-cyan-400"   },
+  { id: "settings",     icon: Settings,       label: "Settings",       color: "text-gray-400"   },
+  { id: "audit",        icon: FileText,       label: "Audit Logs",     color: "text-red-400"    },
 ];
 
+function formatKES(n: number) {
+  return `KES ${n.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
+}
+function fmtShort(n: number) {
+  if (n >= 1_000_000) return `KES ${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `KES ${(n / 1_000).toFixed(1)}K`;
+  return formatKES(n);
+}
+
 export default function AdminPage() {
-  const { data: me } = useGetMe();
-  const [activeTab, setActiveTab] = useState<Tab>("analytics");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { data: me }                         = useGetMe();
+  const { data: analytics }                  = useGetAdminAnalytics();
+  const [activeTab, setActiveTab]            = useState<Tab>("analytics");
+  const [processingStakes, setProcessingStakes] = useState(false);
+  const { toast }                            = useToast();
+
+  async function processStakes() {
+    setProcessingStakes(true);
+    try {
+      const token = getToken();
+      const res   = await fetch("/api/admin/cron/process-stakes", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed");
+      toast({
+        title: "Stakes processed",
+        description: `${body.processed ?? 0} matured stakes paid out.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/analytics"] });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setProcessingStakes(false);
+    }
+  }
 
   if (!me) {
     return (
@@ -59,74 +94,94 @@ export default function AdminPage() {
     );
   }
 
-  const activeTabInfo = tabs.find((t) => t.id === activeTab)!;
-  const ActiveIcon = activeTabInfo.icon;
+  const summaryStats = [
+    { label: "Total AUM",      value: fmtShort(analytics?.tvl ?? 0),            icon: Wallet,    color: "text-green-400"  },
+    { label: "Total Users",    value: String(analytics?.totalUsers ?? 0),        icon: Users,     color: "text-sky-400"    },
+    { label: "Revenue",        value: fmtShort(analytics?.platformRevenue ?? 0), icon: TrendingUp, color: "text-yellow-400" },
+    { label: "Active Stakes",  value: String(analytics?.activeStakesCount ?? 0), icon: Activity,  color: "text-orange-400" },
+  ];
 
   return (
     <AppLayout>
-      <div className="flex gap-6 min-h-[calc(100vh-5rem)]">
-        {/* Admin Sidebar */}
-        <aside className={cn(
-          "shrink-0 transition-all duration-200",
-          "hidden md:block w-56"
-        )}>
-          {/* Admin header */}
-          <div className="bg-amber-900/20 border border-amber-800/30 rounded-2xl p-4 mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-600/30 border border-amber-500/30 flex items-center justify-center">
-                <Shield className="w-5 h-5 text-amber-400" />
-              </div>
-              <div>
-                <p className="font-bold text-white text-sm">Admin Panel</p>
-                <p className="text-[10px] text-amber-400/70">Full access</p>
-              </div>
-            </div>
-          </div>
+      {/* ── Admin header bar ─────────────────────────────────── */}
+      <div className="bg-[#1a0f00] border border-amber-800/30 rounded-2xl p-4 mb-4 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-amber-600/20 border border-amber-500/20 flex items-center justify-center shrink-0">
+          <Shield className="w-5 h-5 text-amber-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-white text-sm">Admin Control Panel</p>
+          <p className="text-[10px] text-amber-400/70">Full platform access · {me.email}</p>
+        </div>
+        <button
+          onClick={processStakes}
+          disabled={processingStakes}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-600/20 border border-amber-700/40 text-amber-300 text-xs font-semibold hover:bg-amber-600/30 disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${processingStakes ? "animate-spin" : ""}`} />
+          {processingStakes ? "Running…" : "Process Stakes"}
+        </button>
+      </div>
 
-          {/* Nav */}
-          <nav className="space-y-1">
+      {/* ── Quick summary stats ───────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        {summaryStats.map((s) => (
+          <div key={s.label} className="bg-[#0a1208] border border-green-900/20 rounded-2xl p-3">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <s.icon className={`w-3.5 h-3.5 ${s.color}`} />
+              <span className="text-[10px] text-gray-500">{s.label}</span>
+            </div>
+            <p className={`text-sm font-black ${s.color}`}>{s.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex gap-5">
+        {/* ── Desktop sidebar nav ───────────────────────────────── */}
+        <aside className="hidden md:block shrink-0 w-48">
+          <nav className="space-y-0.5">
             {tabs.map((tab) => {
-              const Icon = tab.icon;
+              const Icon     = tab.icon;
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all text-left group",
+                    "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-left",
                     isActive
-                      ? "bg-[#0d1a10] border border-green-800/40 text-white shadow-sm"
+                      ? "bg-[#0d1a10] border border-green-800/40 text-white"
                       : "text-gray-400 hover:text-white hover:bg-green-900/20"
                   )}
                 >
-                  <Icon className={cn("w-4 h-4 shrink-0", isActive ? tab.color : "group-hover:text-gray-300")} />
+                  <Icon className={cn("w-4 h-4 shrink-0", isActive ? tab.color : "")} />
                   <span className="flex-1 font-medium">{tab.label}</span>
-                  {isActive && <ChevronRight className="w-3.5 h-3.5 text-gray-500" />}
+                  {isActive && <ChevronRight className="w-3 h-3 text-gray-600" />}
                 </button>
               );
             })}
           </nav>
         </aside>
 
-        {/* Main content */}
+        {/* ── Main area ─────────────────────────────────────────── */}
         <div className="flex-1 min-w-0">
-          {/* Mobile tab selector */}
-          <div className="md:hidden mb-4">
-            <div className="bg-[#0d1a10] border border-green-900/30 rounded-xl p-1 overflow-x-auto flex gap-1">
+          {/* Mobile tab chips — horizontal scroll */}
+          <div className="md:hidden mb-4 overflow-x-auto pb-1">
+            <div className="flex gap-1.5 min-w-max">
               {tabs.map((tab) => {
-                const Icon = tab.icon;
+                const Icon     = tab.icon;
+                const isActive = activeTab === tab.id;
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={cn(
-                      "flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs whitespace-nowrap transition-all",
-                      activeTab === tab.id
-                        ? "bg-green-600 text-white"
-                        : "text-gray-400 hover:text-white"
+                      "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border",
+                      isActive
+                        ? "bg-[#0d1a10] border-green-700/50 text-white"
+                        : "border-green-900/20 text-gray-500 bg-[#0a1208]"
                     )}
                   >
-                    <Icon className="w-3.5 h-3.5" />
+                    <Icon className={cn("w-3.5 h-3.5", isActive ? tab.color : "")} />
                     {tab.label}
                   </button>
                 );
@@ -134,28 +189,15 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Page header */}
-          <div className="flex items-center gap-3 mb-5">
-            <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center bg-[#0d1a10] border border-green-900/30")}>
-              <ActiveIcon className={cn("w-5 h-5", activeTabInfo.color)} />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-white">{activeTabInfo.label}</h1>
-              <p className="text-xs text-gray-400">{activeTabInfo.description}</p>
-            </div>
-          </div>
-
-          {/* Content */}
-          <div>
-            {activeTab === "analytics" && <AdminAnalytics />}
-            {activeTab === "users" && <AdminUsers />}
-            {activeTab === "transactions" && <AdminTransactions />}
-            {activeTab === "withdrawals" && <AdminWithdrawals />}
-            {activeTab === "referrals" && <AdminReferrals />}
-            {activeTab === "plans" && <AdminPlans />}
-            {activeTab === "settings" && <AdminSettings />}
-            {activeTab === "audit" && <AdminAuditLogs />}
-          </div>
+          {/* Tab content */}
+          {activeTab === "analytics"    && <AdminAnalytics />}
+          {activeTab === "users"        && <AdminUsers />}
+          {activeTab === "transactions" && <AdminTransactions />}
+          {activeTab === "withdrawals"  && <AdminWithdrawals />}
+          {activeTab === "referrals"    && <AdminReferrals />}
+          {activeTab === "plans"        && <AdminPlans />}
+          {activeTab === "settings"     && <AdminSettings />}
+          {activeTab === "audit"        && <AdminAuditLogs />}
         </div>
       </div>
     </AppLayout>

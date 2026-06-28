@@ -193,7 +193,7 @@ export default function AdminPlans() {
     return (
       <div className="space-y-3">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="h-24 bg-[#0d1a10] rounded-xl border border-green-900/20 animate-pulse" />
+          <div key={i} className="h-24 bg-[#0d1a10] rounded-xl border border-green-900/20" />
         ))}
       </div>
     );

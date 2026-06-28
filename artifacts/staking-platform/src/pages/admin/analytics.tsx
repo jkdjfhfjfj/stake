@@ -57,7 +57,7 @@ export default function AdminAnalytics() {
     return (
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {[...Array(6)].map((_, i) => (
-          <Card key={i} className="bg-[#0d1a10] border-green-900/30 h-24 animate-pulse" />
+          <Card key={i} className="bg-[#0d1a10] border-green-900/30 h-24" />
         ))}
       </div>
     );

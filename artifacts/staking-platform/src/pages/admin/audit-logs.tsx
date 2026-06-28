@@ -39,7 +39,7 @@ export default function AdminAuditLogs() {
     return (
       <div className="space-y-2">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-16 bg-[#0d1a10] rounded-xl border border-green-900/20 animate-pulse" />
+          <div key={i} className="h-16 bg-[#0d1a10] rounded-xl border border-green-900/20" />
         ))}
       </div>
     );
