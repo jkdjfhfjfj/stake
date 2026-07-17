@@ -82,6 +82,11 @@ router.patch("/staking-plans/:id", requireAdmin, async (req, res): Promise<void>
   res.json({ ...UpdateStakingPlanResponse.parse(parsePlan(plan)), lockPeriodDays: parsePlan(plan).lockPeriodDays });
 });
 
+router.delete("/staking-plans/all", requireAdmin, async (_req, res): Promise<void> => {
+  await db.delete(stakingPlansTable);
+  res.json({ ok: true });
+});
+
 router.delete("/staking-plans/:id", requireAdmin, async (req, res): Promise<void> => {
   const params = DeleteStakingPlanParams.safeParse(req.params);
   if (!params.success) {
@@ -89,7 +94,7 @@ router.delete("/staking-plans/:id", requireAdmin, async (req, res): Promise<void
     return;
   }
   await db.delete(stakingPlansTable).where(eq(stakingPlansTable.id, params.data.id));
-  res.sendStatus(204);
+  res.json({ ok: true });
 });
 
 export default router;

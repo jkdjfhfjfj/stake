@@ -199,6 +199,21 @@ export default function AdminPlans() {
     },
   });
 
+  const deleteAllPlans = useMutation({
+    mutationFn: async () => {
+      const res = await authedFetch("/api/staking-plans/all", { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "All plans deleted" });
+      qc.invalidateQueries({ queryKey: ["/api/admin/staking-plans"] });
+    },
+    onError: (e: any) => {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -211,23 +226,49 @@ export default function AdminPlans() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm text-gray-400">{plans.length} staking plan{plans.length !== 1 ? "s" : ""}</p>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-green-600 hover:bg-green-500 gap-2 h-9">
-              <Plus className="w-4 h-4" /> Create Plan
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="bg-[#0d1a10] border-green-900/40 text-white max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Layers className="w-5 h-5 text-cyan-400" /> Create Staking Plan
-              </DialogTitle>
-            </DialogHeader>
-            <PlanForm onClose={() => setCreateOpen(false)} />
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-2">
+          {plans.length > 0 && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" className="h-9 gap-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 border border-red-900/30">
+                  <Trash2 className="w-4 h-4" /> Delete All
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-[#0d1a10] border-red-900/40 text-white">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete all {plans.length} plans?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-gray-400">
+                    This will permanently delete every staking plan. Active stakes won't be removed, but no new stakes can be created until you add plans again. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-transparent border-green-900/40 text-gray-300">Cancel</AlertDialogCancel>
+                  <AlertDialogAction className="bg-red-600 hover:bg-red-500"
+                    onClick={() => deleteAllPlans.mutate()}>
+                    Delete All Plans
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-green-600 hover:bg-green-500 gap-2 h-9">
+                <Plus className="w-4 h-4" /> Create Plan
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-[#0d1a10] border-green-900/40 text-white max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-cyan-400" /> Create Staking Plan
+                </DialogTitle>
+              </DialogHeader>
+              <PlanForm onClose={() => setCreateOpen(false)} />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {plans.length === 0 ? (

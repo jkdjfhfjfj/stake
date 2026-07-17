@@ -47,6 +47,8 @@ function QrokAIWidget() {
       .catch(() => setEnabled(false));
   }, []);
 
+  // Always render the button; show a "not configured" notice if AI is disabled
+
   useEffect(() => {
     if (open && endRef.current) endRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages, open]);
@@ -74,14 +76,14 @@ function QrokAIWidget() {
     }
   };
 
-  if (enabled === false) return null;
+  // Always show the button — if not configured, chat window shows a friendly notice
 
   return (
     <>
-      {/* Floating button */}
+      {/* Floating button — sits to the left of the WhatsApp button */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="fixed bottom-20 md:bottom-6 right-20 md:right-20 z-50 w-12 h-12 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full flex items-center justify-center shadow-lg hover:opacity-90 active:opacity-70"
+        className="fixed bottom-20 md:bottom-6 right-[4.5rem] md:right-[4.5rem] z-50 w-12 h-12 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full flex items-center justify-center shadow-lg hover:opacity-90 active:opacity-70"
         title="Chat with Qrok AI"
         aria-label="Qrok AI Assistant"
       >
@@ -111,16 +113,25 @@ function QrokAIWidget() {
             {messages.length === 0 && (
               <div className="text-center pt-4">
                 <Bot className="w-8 h-8 text-indigo-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-300 font-medium">Hi! I'm Qrok AI 👋</p>
-                <p className="text-xs text-gray-500 mt-1">Ask me anything about StakeKE — deposits, staking plans, withdrawals, and more.</p>
-                <div className="mt-3 space-y-1.5">
-                  {["How do I deposit via M-Pesa?", "What are the staking plans?", "How long does withdrawal take?"].map(q => (
-                    <button key={q} onClick={() => { setInput(q); }}
-                      className="w-full text-left text-xs bg-indigo-900/20 border border-indigo-800/30 text-indigo-300 rounded-lg px-3 py-2 hover:bg-indigo-900/30">
-                      {q}
-                    </button>
-                  ))}
-                </div>
+                {enabled === false ? (
+                  <>
+                    <p className="text-sm text-gray-300 font-medium">Qrok AI</p>
+                    <p className="text-xs text-gray-500 mt-2 px-2">AI assistant is not configured yet. Ask your admin to add a Groq API key in Settings.</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-300 font-medium">Hi! I'm Qrok AI 👋</p>
+                    <p className="text-xs text-gray-500 mt-1">Ask me anything about StakeKE — deposits, staking plans, withdrawals, and more.</p>
+                    <div className="mt-3 space-y-1.5">
+                      {["How do I deposit via M-Pesa?", "What are the staking plans?", "How long does withdrawal take?"].map(q => (
+                        <button key={q} onClick={() => { setInput(q); }}
+                          className="w-full text-left text-xs bg-indigo-900/20 border border-indigo-800/30 text-indigo-300 rounded-lg px-3 py-2 hover:bg-indigo-900/30">
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
             {messages.map((m, i) => (

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown, DollarSign,
-  Users, Settings, Activity, Search, Filter
+  Users, Settings, Activity, Search, AlertTriangle
 } from "lucide-react";
 
 function formatKES(n: number) {
@@ -76,6 +76,19 @@ export default function TransactionsPage() {
             <div className="bg-[#0d1a10] border border-green-900/20 rounded-xl p-3">
               <p className="text-xs text-gray-400 mb-1">Transactions</p>
               <p className="text-base font-bold text-white">{txs.length}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Debited but not credited warning */}
+        {txs.some((t: any) => t.type === "DEPOSIT" && (t.status === "PENDING" || t.status === "FAILED")) && (
+          <div className="flex items-start gap-3 bg-yellow-900/10 border border-yellow-800/30 rounded-xl p-4">
+            <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-yellow-300">M-Pesa debit with no credit?</p>
+              <p className="text-xs text-yellow-600/80 mt-1 leading-relaxed">
+                You have one or more deposit(s) still showing as <strong className="text-yellow-500">PENDING</strong> or <strong className="text-yellow-500">FAILED</strong>. If M-Pesa debited your phone but your balance wasn't credited, wait up to 10 minutes for the payment to confirm automatically. If it doesn't resolve, contact support via WhatsApp with your M-Pesa transaction code (e.g. <span className="font-mono">QHX123ABCD</span>).
+              </p>
             </div>
           </div>
         )}

@@ -305,7 +305,9 @@
 :root.light-mode {
   --bg-base: #f0faf2;
   --bg-card: #ffffff;
+  --bg-card-raised: #f4fdf6;
   --bg-input: #f7fbf8;
+  --bg-sidebar: #e8f5ea;
   --border-subtle: #c8e6cc;
   --text-primary: #0d2010;
   --text-secondary: #3a5c3f;
@@ -313,16 +315,36 @@
 }
 
 .light-mode body {
-  background-color: var(--bg-base);
+  background-color: var(--bg-base) !important;
   color: var(--text-primary);
 }
 
+/* Main layout backgrounds */
+.light-mode .bg-\[\#060d08\],
 .light-mode .bg-\[\#070d09\],
+.light-mode .bg-\[\#080e09\],
+.light-mode .bg-\[\#080f0a\] {
+  background-color: var(--bg-sidebar) !important;
+}
+
+/* Card / panel backgrounds */
 .light-mode .bg-\[\#0a0f0d\],
 .light-mode .bg-\[\#0a1410\],
 .light-mode .bg-\[\#0d1a10\],
-.light-mode .bg-\[\#080e09\] {
+.light-mode .bg-\[\#0d2010\],
+.light-mode .bg-\[\#1a2b1a\] {
   background-color: var(--bg-card) !important;
+}
+
+/* Input / deep-dark surfaces */
+.light-mode .bg-\[\#0a0f0d\] {
+  background-color: var(--bg-input) !important;
+}
+
+/* AI chat widget gets a light surface too */
+.light-mode .bg-\[\#0d1a10\].fixed {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-subtle) !important;
 }
 
 .light-mode .text-white {
@@ -339,9 +361,23 @@
 }
 
 .light-mode .border-green-900\/20,
+.light-mode .border-green-900\/25,
 .light-mode .border-green-900\/30,
 .light-mode .border-green-900\/40 {
   border-color: var(--border-subtle) !important;
+}
+
+/* Sidebar and bottom-bar in light mode */
+.light-mode aside,
+.light-mode nav.fixed {
+  background-color: var(--bg-sidebar) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* Fix placeholder text in light mode */
+.light-mode ::placeholder {
+  color: var(--text-muted) !important;
+  opacity: 1;
 }
 
 /* Android Chrome on low-end/small screens can corrupt composited layers when
