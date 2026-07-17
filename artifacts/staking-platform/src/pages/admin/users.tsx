@@ -14,7 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   Users, Lock, Unlock, Edit, Search, Shield, TrendingUp, Wallet, Phone, Mail, Plus, Minus,
   TrendingDown, Clock, CheckCircle, XCircle, FileCheck, FilePlus, AlertTriangle, ChevronDown, ChevronUp,
-  Trash2, ArrowDownCircle, ArrowUpCircle, RefreshCcw, Receipt,
+  Trash2, ArrowDownCircle, ArrowUpCircle, RefreshCcw, Receipt, Pencil, X, Check,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getToken } from "@/lib/auth";
@@ -60,10 +60,145 @@ const TX_STATUS_COLORS: Record<string, string> = {
 };
 const TX_CREDIT = new Set(["DEPOSIT", "INTEREST", "MANUAL_CREDIT", "REFERRAL_REWARD", "UNSTAKE"]);
 
+const TX_STATUSES = ["PENDING", "COMPLETED", "FAILED", "REJECTED"];
+
+function TxEditRow({ tx, onSaved }: { tx: any; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({
+    status: tx.status,
+    description: tx.description ?? "",
+    amount: String(tx.amount),
+    createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString().slice(0, 16) : "",
+  });
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await authedFetch(`/api/admin/transactions/${tx.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: form.status,
+          description: form.description || null,
+          amount: form.amount ? Number(form.amount) : undefined,
+          createdAt: form.createdAt ? new Date(form.createdAt).toISOString() : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      toast({ title: "Transaction updated", variant: "success" });
+      setEditing(false);
+      onSaved();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isCredit = TX_CREDIT.has(tx.type);
+
+  if (editing) {
+    return (
+      <div className="bg-[#0a1410] rounded-xl p-3 border border-green-700/40 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Badge className={`${TX_TYPE_COLORS[tx.type] ?? "bg-gray-700/30 text-gray-400"} border-0 text-[10px] px-1.5`}>
+              {tx.type.replace(/_/g, " ")}
+            </Badge>
+            <span className="text-[10px] text-gray-500">#{tx.id}</span>
+          </div>
+          <button onClick={() => setEditing(false)} className="text-gray-500 hover:text-white">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] text-gray-500 block mb-1">Status</label>
+            <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
+              className="w-full bg-[#060d08] border border-green-900/40 text-white text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-green-500">
+              {TX_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 block mb-1">Amount (KES)</label>
+            <Input value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))}
+              type="number" step="0.01" min="0"
+              className="bg-[#060d08] border-green-900/40 text-white focus:border-green-500 h-7 text-xs" />
+          </div>
+          <div className="col-span-2">
+            <label className="text-[10px] text-gray-500 block mb-1">Description</label>
+            <Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+              placeholder="Transaction description…"
+              className="bg-[#060d08] border-green-900/40 text-white focus:border-green-500 h-7 text-xs" />
+          </div>
+          <div className="col-span-2">
+            <label className="text-[10px] text-gray-500 block mb-1">Date & Time</label>
+            <Input value={form.createdAt} onChange={e => setForm(p => ({ ...p, createdAt: e.target.value }))}
+              type="datetime-local"
+              className="bg-[#060d08] border-green-900/40 text-white focus:border-green-500 h-7 text-xs" />
+          </div>
+        </div>
+        <div className="flex gap-2 pt-0.5">
+          <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-500 h-7 text-xs gap-1"
+            onClick={save} disabled={saving}>
+            {saving ? <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" /> : <Check className="w-3 h-3" />}
+            Save
+          </Button>
+          <Button size="sm" variant="ghost" className="border border-green-900/30 text-gray-400 hover:text-white h-7 text-xs px-3"
+            onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 bg-[#0a1410] rounded-xl p-3 border border-green-900/10 hover:border-green-900/25 group">
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isCredit ? "bg-green-900/30" : "bg-red-900/20"}`}>
+        {isCredit
+          ? <ArrowDownCircle className="w-4 h-4 text-green-400" />
+          : <ArrowUpCircle className="w-4 h-4 text-red-400" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Badge className={`${TX_TYPE_COLORS[tx.type] ?? "bg-gray-700/30 text-gray-400"} border-0 text-[10px] px-1.5`}>
+            {tx.type.replace(/_/g, " ")}
+          </Badge>
+          <Badge className={`${TX_STATUS_COLORS[tx.status] ?? ""} border-0 text-[10px] px-1.5`}>{tx.status}</Badge>
+        </div>
+        <p className="text-[10px] text-gray-500 mt-0.5">
+          {new Date(tx.createdAt).toLocaleString("en-KE")}
+          {tx.description && ` · ${tx.description}`}
+        </p>
+        {tx.externalReference && (
+          <p className="text-[10px] text-gray-600 font-mono truncate max-w-[200px]">{tx.externalReference}</p>
+        )}
+      </div>
+      <div className="text-right shrink-0 flex items-center gap-2">
+        <div>
+          <p className={`text-sm font-bold ${isCredit ? "text-green-400" : "text-red-400"}`}>
+            {isCredit ? "+" : "-"}KES {tx.amount.toLocaleString("en-KE", { minimumFractionDigits: 2 })}
+          </p>
+          <p className="text-[10px] text-gray-600">#{tx.id}</p>
+        </div>
+        <button
+          onClick={() => setEditing(true)}
+          className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-green-400 transition-opacity p-1 rounded-lg hover:bg-green-900/20"
+          title="Edit transaction">
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function UserTransactionsDialog({ user }: { user: any }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const { data: txs, isLoading } = useQuery<any[]>({
+  const { data: txs, isLoading, refetch } = useQuery<any[]>({
     queryKey: [`/api/admin/users/${user.id}/transactions`],
     queryFn: async () => {
       const token = getToken();
@@ -140,39 +275,9 @@ function UserTransactionsDialog({ user }: { user: any }) {
               </div>
             ) : (
               <div className="space-y-1.5 pr-1">
-                {filtered.map((t) => {
-                  const isCredit = TX_CREDIT.has(t.type);
-                  return (
-                    <div key={t.id} className="flex items-center gap-3 bg-[#0a1410] rounded-xl p-3 border border-green-900/10 hover:border-green-900/25">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isCredit ? "bg-green-900/30" : "bg-red-900/20"}`}>
-                        {isCredit
-                          ? <ArrowDownCircle className="w-4 h-4 text-green-400" />
-                          : <ArrowUpCircle className="w-4 h-4 text-red-400" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <Badge className={`${TX_TYPE_COLORS[t.type] ?? "bg-gray-700/30 text-gray-400"} border-0 text-[10px] px-1.5`}>
-                            {t.type.replace(/_/g, " ")}
-                          </Badge>
-                          <Badge className={`${TX_STATUS_COLORS[t.status] ?? ""} border-0 text-[10px] px-1.5`}>{t.status}</Badge>
-                        </div>
-                        <p className="text-[10px] text-gray-500 mt-0.5">
-                          {new Date(t.createdAt).toLocaleString("en-KE")}
-                          {t.description && ` · ${t.description}`}
-                        </p>
-                        {t.externalReference && (
-                          <p className="text-[10px] text-gray-600 font-mono truncate max-w-[200px]">{t.externalReference}</p>
-                        )}
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className={`text-sm font-bold ${isCredit ? "text-green-400" : "text-red-400"}`}>
-                          {isCredit ? "+" : "-"}KES {t.amount.toLocaleString("en-KE", { minimumFractionDigits: 2 })}
-                        </p>
-                        <p className="text-[10px] text-gray-600">#{t.id}</p>
-                      </div>
-                    </div>
-                  );
-                })}
+                {filtered.map((t) => (
+                  <TxEditRow key={t.id} tx={t} onSaved={() => refetch()} />
+                ))}
               </div>
             )}
           </div>
@@ -191,8 +296,9 @@ function DeleteUserButton({ user, onDeleted }: { user: any; onDeleted: () => voi
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
-      return res.json();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      return data;
     },
     onSuccess: () => {
       toast({ title: "User deleted", variant: "success" });

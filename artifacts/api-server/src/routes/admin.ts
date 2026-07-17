@@ -812,7 +812,7 @@ router.get("/admin/users/:id/transactions", requireAdmin, async (req, res): Prom
 router.patch("/admin/transactions/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  const { status, description, createdAt } = req.body as { status?: string; description?: string; createdAt?: string };
+  const { status, description, createdAt, amount } = req.body as { status?: string; description?: string; createdAt?: string; amount?: number };
   const allowed = ["PENDING", "COMPLETED", "FAILED", "REJECTED"];
   if (status && !allowed.includes(status)) {
     res.status(400).json({ error: "Invalid status" }); return;
@@ -826,6 +826,9 @@ router.patch("/admin/transactions/:id", requireAdmin, async (req, res): Promise<
   if (createdAt) {
     const d = new Date(createdAt);
     if (!isNaN(d.getTime())) updates.createdAt = d;
+  }
+  if (amount !== undefined && !isNaN(Number(amount)) && Number(amount) > 0) {
+    updates.amount = Number(amount).toFixed(2);
   }
 
   const [updated] = await db.update(transactionsTable).set(updates).where(eq(transactionsTable.id, id)).returning();
