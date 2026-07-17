@@ -1,11 +1,24 @@
 import { Router } from "express";
 import { requireAuth } from "../lib/auth";
+import { db, platformSettingsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const router = Router();
 
+async function getGroqApiKey(): Promise<string> {
+  // DB takes priority over env var so admin can set it from the settings UI
+  try {
+    const row = await db.query.platformSettingsTable.findFirst({
+      where: eq(platformSettingsTable.key, "groq_api_key" as any),
+    });
+    if (row?.value) return row.value;
+  } catch { /* fall through */ }
+  return process.env.QROK_API_KEY ?? "";
+}
+
 // Qrok AI Chat proxy — forwards messages to Groq-compatible API
 router.post("/ai/chat", requireAuth, async (req, res): Promise<void> => {
-  const apiKey = process.env.QROK_API_KEY;
+  const apiKey = await getGroqApiKey();
   const apiBase = process.env.QROK_API_BASE_URL ?? "https://api.groq.com/openai/v1";
   const model = process.env.QROK_MODEL ?? "llama3-8b-8192";
 

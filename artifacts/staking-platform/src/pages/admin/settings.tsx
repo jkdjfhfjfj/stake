@@ -46,6 +46,13 @@ export default function AdminSettings() {
   const [extLoading, setExtLoading] = useState(false);
   const [extSaving, setExtSaving] = useState(false);
 
+  // Groq AI key state (separate save so we don't accidentally clear it)
+  const [groqApiKey, setGroqApiKey] = useState("");
+  const [groqKeySet, setGroqKeySet] = useState(false);
+  const [groqKeyMasked, setGroqKeyMasked] = useState("");
+  const [showGroqKey, setShowGroqKey] = useState(false);
+  const [groqSaving, setGroqSaving] = useState(false);
+
   useEffect(() => {
     if (data) {
       setForm({
@@ -68,6 +75,8 @@ export default function AdminSettings() {
           cloudinaryCloudName: d.cloudinaryCloudName ?? "",
           cloudinaryUploadPreset: d.cloudinaryUploadPreset ?? "",
         });
+        setGroqKeySet(Boolean(d.groqApiKeySet));
+        setGroqKeyMasked(d.groqApiKeyMasked ?? "");
       })
       .catch(() => {})
       .finally(() => setExtLoading(false));
@@ -92,12 +101,38 @@ export default function AdminSettings() {
         method: "PATCH",
         body: JSON.stringify(extForm),
       });
-      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed");
       toast({ title: "Communication & KYC settings saved!", variant: "success" });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
       setExtSaving(false);
+    }
+  };
+
+  const saveGroqKey = async () => {
+    if (!groqApiKey.trim()) return;
+    setGroqSaving(true);
+    try {
+      const res = await authedFetch("/api/admin/settings/extended", {
+        method: "PATCH",
+        body: JSON.stringify({ groqApiKey: groqApiKey.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      toast({ title: "Groq API key saved!", description: "The AI widget is now active for all users.", variant: "success" });
+      setGroqApiKey("");
+      setGroqKeySet(true);
+      // Refresh masked key
+      authedFetch("/api/admin/settings/extended").then(r => r.json()).then(d => {
+        setGroqKeyMasked(d.groqApiKeyMasked ?? "");
+        setGroqKeySet(Boolean(d.groqApiKeySet));
+      });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setGroqSaving(false);
     }
   };
 
@@ -325,55 +360,71 @@ export default function AdminSettings() {
             </div>
             Qrok AI Assistant
             <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full font-medium ${
-              Boolean((window as any).__QROK_ENABLED__)
-                ? "bg-green-900/30 text-green-400"
-                : "bg-gray-800 text-gray-500"
+              groqKeySet ? "bg-green-900/30 text-green-400" : "bg-gray-800 text-gray-500"
             }`}>
-              {Boolean(process.env.QROK_API_KEY) ? "Active" : "Not Configured"}
+              {groqKeySet ? "Active" : "Not Configured"}
             </span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           <div className="bg-indigo-900/10 border border-indigo-900/25 rounded-xl p-3 text-xs text-indigo-300/80 flex gap-2">
             <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
             <span>
-              The Qrok AI chat widget appears as a floating button for all logged-in users.
-              It uses a Groq-compatible API to answer questions about StakeKE.
+              Enter your <strong>Groq API key</strong> to enable the AI chat widget for all users.
+              Get a free key at <strong>console.groq.com</strong>. The key is stored securely in the database.
             </span>
           </div>
-          <div className="bg-[#0a1410] rounded-xl p-3 border border-green-900/20 text-xs text-gray-400 space-y-2">
-            <p className="text-gray-300 font-medium">Setup instructions:</p>
-            <p>1. Get an API key from <strong className="text-indigo-300">console.groq.com</strong> (free tier available)</p>
-            <p>2. Add <code className="text-green-400 bg-green-900/20 px-1 rounded">QROK_API_KEY</code> to your Replit environment secrets</p>
-            <p>3. Optionally set <code className="text-green-400 bg-green-900/20 px-1 rounded">QROK_MODEL</code> (default: <code className="text-gray-400">llama3-8b-8192</code>)</p>
-            <p>4. Restart the API server — the widget will appear automatically for users</p>
+
+          {/* Current key status */}
+          {groqKeySet && groqKeyMasked && (
+            <div className="flex items-center gap-2 bg-green-900/10 border border-green-800/25 rounded-xl px-3 py-2">
+              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-green-400 font-medium">API key configured</p>
+                <p className="text-[10px] text-gray-500 font-mono mt-0.5">{groqKeyMasked}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Key input */}
+          <div>
+            <Label className="text-gray-300 text-xs">
+              {groqKeySet ? "Replace API Key" : "Groq API Key"} <span className="text-gray-500">(starts with gsk_)</span>
+            </Label>
+            <div className="relative mt-1.5">
+              <Input
+                value={groqApiKey}
+                onChange={e => setGroqApiKey(e.target.value)}
+                type={showGroqKey ? "text" : "password"}
+                placeholder={groqKeySet ? "Paste new key to replace existing…" : "gsk_…"}
+                className="bg-[#0a0f0d] border-green-900/40 text-white focus:border-indigo-500 pr-10 h-9 font-mono text-xs"
+              />
+              <button type="button" onClick={() => setShowGroqKey(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                {showGroqKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
-          <QrokStatusBadge />
+
+          <div className="flex items-center gap-3">
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-500 gap-2 h-9"
+              disabled={groqSaving || !groqApiKey.trim()}
+              onClick={saveGroqKey}>
+              {groqSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {groqSaving ? "Saving…" : groqKeySet ? "Replace Key" : "Save Key & Enable AI"}
+            </Button>
+            {!groqKeySet && (
+              <p className="text-xs text-gray-500">Widget will appear once a key is saved</p>
+            )}
+          </div>
+
+          <div className="bg-[#0a1410] rounded-xl p-3 border border-green-900/20 text-xs text-gray-500 space-y-1">
+            <p className="text-gray-400 font-medium">Model:</p>
+            <p>Default: <code className="text-green-400 bg-green-900/20 px-1 rounded">llama3-8b-8192</code> — override with <code className="text-green-400 bg-green-900/20 px-1 rounded">QROK_MODEL</code> env var</p>
+          </div>
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-function QrokStatusBadge() {
-  const [status, setStatus] = useState<"loading" | "enabled" | "disabled">("loading");
-  useEffect(() => {
-    fetch("/api/settings/public")
-      .then(r => r.json())
-      .then(d => setStatus(d.qrokEnabled ? "enabled" : "disabled"))
-      .catch(() => setStatus("disabled"));
-  }, []);
-  if (status === "loading") return null;
-  return (
-    <div className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs border ${
-      status === "enabled"
-        ? "bg-green-900/20 border-green-800/30 text-green-400"
-        : "bg-gray-900/30 border-gray-800/30 text-gray-500"
-    }`}>
-      <div className={`w-2 h-2 rounded-full ${status === "enabled" ? "bg-green-400 animate-pulse" : "bg-gray-600"}`} />
-      {status === "enabled"
-        ? "Qrok AI is active — the chat widget is visible to users"
-        : "Qrok AI is not configured — add QROK_API_KEY to enable"}
     </div>
   );
 }

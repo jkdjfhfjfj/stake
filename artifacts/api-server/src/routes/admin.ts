@@ -701,31 +701,37 @@ router.post("/admin/settings/test-payhero", requireAdmin, async (_req, res): Pro
   }
 });
 
-// ── Extended Settings (WhatsApp, Cloudinary) ────────────────────────────────
-const EXTENDED_SETTING_KEYS = ["whatsapp_number", "cloudinary_cloud_name", "cloudinary_upload_preset"];
+// ── Extended Settings (WhatsApp, Cloudinary, Groq AI) ───────────────────────
+const EXTENDED_SETTING_KEYS = ["whatsapp_number", "cloudinary_cloud_name", "cloudinary_upload_preset", "groq_api_key"];
 
 router.get("/admin/settings/extended", requireAdmin, async (_req, res): Promise<void> => {
   const rows = await db.select().from(platformSettingsTable)
     .where(inArray(platformSettingsTable.key, EXTENDED_SETTING_KEYS as any));
   const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  const rawKey = map["groq_api_key"] ?? process.env.QROK_API_KEY ?? "";
+  // Return masked key so admin can confirm what's set without exposing the full secret
+  const maskedKey = rawKey.length > 8 ? `${rawKey.slice(0, 4)}${"*".repeat(rawKey.length - 8)}${rawKey.slice(-4)}` : (rawKey ? "****" : "");
   res.json({
     whatsappNumber: map["whatsapp_number"] ?? "",
     cloudinaryCloudName: map["cloudinary_cloud_name"] ?? "",
     cloudinaryUploadPreset: map["cloudinary_upload_preset"] ?? "",
+    groqApiKeySet: Boolean(rawKey),
+    groqApiKeyMasked: maskedKey,
   });
 });
 
 router.patch("/admin/settings/extended", requireAdmin, async (req, res): Promise<void> => {
-  const { whatsappNumber, cloudinaryCloudName, cloudinaryUploadPreset } = req.body as Record<string, string>;
   const adminRef = String(req.userId!);
   const keyMap: Record<string, string> = {
     whatsappNumber: "whatsapp_number",
     cloudinaryCloudName: "cloudinary_cloud_name",
     cloudinaryUploadPreset: "cloudinary_upload_preset",
+    groqApiKey: "groq_api_key",
   };
   for (const [field, dbKey] of Object.entries(keyMap)) {
     const val = req.body[field];
-    if (val !== undefined) {
+    // Allow clearing other fields but never save an empty groq key (keep existing)
+    if (val !== undefined && !(field === "groqApiKey" && !val)) {
       await db.insert(platformSettingsTable)
         .values({ key: dbKey, value: String(val), updatedBy: adminRef })
         .onConflictDoUpdate({ target: platformSettingsTable.key, set: { value: String(val), updatedBy: adminRef } });
@@ -734,21 +740,22 @@ router.patch("/admin/settings/extended", requireAdmin, async (req, res): Promise
   await db.insert(auditLogsTable).values({
     adminId: req.userId!,
     action: "Updated extended platform settings",
-    note: Object.keys(req.body).join(", "),
+    note: Object.keys(req.body).filter(k => k !== "groqApiKey").concat(req.body.groqApiKey ? ["groqApiKey (updated)"] : []).join(", "),
   });
-  res.json({ whatsappNumber, cloudinaryCloudName, cloudinaryUploadPreset });
+  res.json({ ok: true });
 });
 
 // ── Public Settings (no auth, returns non-sensitive config) ─────────────────
 router.get("/settings/public", async (_req, res): Promise<void> => {
   const rows = await db.select().from(platformSettingsTable)
-    .where(inArray(platformSettingsTable.key, ["whatsapp_number", "cloudinary_cloud_name", "cloudinary_upload_preset"] as any));
+    .where(inArray(platformSettingsTable.key, ["whatsapp_number", "cloudinary_cloud_name", "cloudinary_upload_preset", "groq_api_key"] as any));
   const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  const groqKey = map["groq_api_key"] || process.env.QROK_API_KEY || "";
   res.json({
     whatsappNumber: map["whatsapp_number"] ?? "",
     cloudinaryCloudName: map["cloudinary_cloud_name"] ?? "",
     cloudinaryUploadPreset: map["cloudinary_upload_preset"] ?? "",
-    qrokEnabled: Boolean(process.env.QROK_API_KEY),
+    qrokEnabled: Boolean(groqKey),
   });
 });
 
