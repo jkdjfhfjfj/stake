@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard, TrendingUp, ArrowLeftRight, Users,
-  Bell, LogOut, TrendingUpIcon, Settings, Shield, Zap, ChevronRight, MessageCircle,
+  Bell, TrendingUpIcon, Settings, Shield, Zap, ChevronRight, MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useListNotifications, useGetMe } from "@workspace/api-client-react";
@@ -162,13 +162,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </Link>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-500 hover:text-red-400 hover:bg-red-900/15 cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Sign Out</span>
-          </button>
         </div>
       </aside>
 

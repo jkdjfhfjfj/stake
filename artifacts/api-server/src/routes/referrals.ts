@@ -44,7 +44,9 @@ router.get("/referrals", requireAuth, async (req, res): Promise<void> => {
   const tier1Earnings = tier1Refs.reduce((acc, r) => acc + Number(r.rewardAmount), 0);
   const tier2Earnings = tier2Refs.reduce((acc, r) => acc + Number(r.rewardAmount), 0);
 
-  const referralLink = `${process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : ""}/sign-up?ref=${user.referralCode}`;
+  const baseUrl = process.env.BASE_URL
+    ?? (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : "");
+  const referralLink = `${baseUrl}/sign-up?ref=${user.referralCode}`;
 
   const referredUsers = referredUsersData.map((u) => {
     const tier = tier1Ids.includes(u.id) ? 1 : 2;

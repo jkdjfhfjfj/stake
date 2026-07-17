@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowDownCircle, ArrowUpCircle, RefreshCcw, Search, Edit2, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, RefreshCcw, Search, Edit2, CheckCircle, XCircle, AlertCircle, Plus } from "lucide-react";
 import { getToken } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -182,6 +182,175 @@ function EditTxDialog({ tx, onDone }: { tx: TxRow; onDone: () => void }) {
   );
 }
 
+function CreateTransactionDialog({ onDone }: { onDone: () => void }) {
+  const [open, setOpen]         = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [type, setType]         = useState("MANUAL_CREDIT");
+  const [amount, setAmount]     = useState("");
+  const [description, setDescription] = useState("");
+  const [status, setStatus]     = useState("COMPLETED");
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const { data: users = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/users"],
+    queryFn: async () => {
+      const res = await authedFetch("/api/admin/users");
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: open,
+  });
+
+  const filteredUsers = (users as any[]).filter((u) => {
+    const q = userSearch.toLowerCase();
+    return !q || u.email.toLowerCase().includes(q) || (u.fullName ?? "").toLowerCase().includes(q);
+  }).slice(0, 8);
+
+  const create = useMutation({
+    mutationFn: async () => {
+      if (!selectedUser) throw new Error("Select a user first");
+      const res = await authedFetch(`/api/admin/users/${selectedUser.id}/transaction`, {
+        method: "POST",
+        body: JSON.stringify({ type, amount: Number(amount), description: description || undefined, status }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Transaction created", variant: "success" });
+      qc.invalidateQueries({ queryKey: ["/api/admin/transactions"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setOpen(false);
+      resetForm();
+      onDone();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const resetForm = () => {
+    setUserSearch(""); setSelectedUser(null); setType("MANUAL_CREDIT");
+    setAmount(""); setDescription(""); setStatus("COMPLETED");
+  };
+
+  const CREDIT_TYPES = new Set(["DEPOSIT", "INTEREST", "MANUAL_CREDIT", "REFERRAL_REWARD", "UNSTAKE"]);
+  const isCredit = CREDIT_TYPES.has(type);
+
+  return (
+    <>
+      <Button onClick={() => setOpen(true)} className="bg-green-600 hover:bg-green-500 gap-2 h-9">
+        <Plus className="w-4 h-4" /> Create Transaction
+      </Button>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
+        <DialogContent className="bg-[#0d1a10] border-green-900/40 text-white max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-sm flex items-center gap-2">
+              <Plus className="w-4 h-4 text-green-400" /> Create Transaction for User
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            {/* User selector */}
+            <div>
+              <Label className="text-gray-300 text-xs">Select User</Label>
+              {selectedUser ? (
+                <div className="mt-1.5 flex items-center gap-2 bg-[#0a2510] border border-green-700/40 rounded-xl px-3 py-2">
+                  <div className="w-6 h-6 rounded-full bg-green-800 flex items-center justify-center text-[10px] font-bold shrink-0">
+                    {selectedUser.email[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-white font-medium truncate">{selectedUser.fullName ?? selectedUser.email}</p>
+                    <p className="text-[10px] text-gray-400 truncate">{selectedUser.email} · {formatKES(selectedUser.availableBalance)}</p>
+                  </div>
+                  <button onClick={() => setSelectedUser(null)} className="text-gray-500 hover:text-white text-xs shrink-0">✕</button>
+                </div>
+              ) : (
+                <div className="mt-1.5 space-y-1.5">
+                  <Input value={userSearch} onChange={(e) => setUserSearch(e.target.value)}
+                    placeholder="Search user by name or email…"
+                    className="bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-8 text-xs" />
+                  {filteredUsers.length > 0 && (
+                    <div className="bg-[#060d08] border border-green-900/20 rounded-xl overflow-hidden">
+                      {filteredUsers.map((u) => (
+                        <button key={u.id} onClick={() => { setSelectedUser(u); setUserSearch(""); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-green-900/20 text-left border-b border-green-900/10 last:border-0">
+                          <div className="w-5 h-5 rounded-full bg-green-900 flex items-center justify-center text-[10px] font-bold shrink-0">
+                            {u.email[0].toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-white truncate">{u.fullName ?? u.email}</p>
+                            <p className="text-[10px] text-gray-500 truncate">{u.email}</p>
+                          </div>
+                          <span className="text-[10px] text-green-400 shrink-0">{formatKES(u.availableBalance)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Type */}
+            <div>
+              <Label className="text-gray-300 text-xs">Transaction Type</Label>
+              <select value={type} onChange={(e) => setType(e.target.value)}
+                className="mt-1.5 w-full bg-[#0a0f0d] border border-green-900/40 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-green-500">
+                {["MANUAL_CREDIT", "MANUAL_DEBIT", "DEPOSIT", "WITHDRAWAL", "INTEREST", "REFERRAL_REWARD", "STAKE", "UNSTAKE"].map((t) => (
+                  <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Amount */}
+            <div>
+              <Label className="text-gray-300 text-xs">Amount (KES)</Label>
+              <Input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" placeholder="0.00"
+                className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-10 text-lg" />
+              {amount && Number(amount) > 0 && (
+                <p className={`text-xs mt-1 ${isCredit ? "text-green-400" : "text-red-400"}`}>
+                  {isCredit ? "▲ Credits" : "▼ Debits"} user balance by {formatKES(Number(amount))}
+                </p>
+              )}
+            </div>
+
+            {/* Description */}
+            <div>
+              <Label className="text-gray-300 text-xs">Description / Note</Label>
+              <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Reason or note (optional)"
+                className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-8 text-xs" />
+            </div>
+
+            {/* Status */}
+            <div>
+              <Label className="text-gray-300 text-xs">Status</Label>
+              <select value={status} onChange={(e) => setStatus(e.target.value)}
+                className="mt-1.5 w-full bg-[#0a0f0d] border border-green-900/40 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-green-500">
+                {["COMPLETED", "PENDING", "FAILED"].map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              {status !== "COMPLETED" && (
+                <p className="text-xs text-yellow-400/70 mt-1">Note: balance is only adjusted for COMPLETED transactions.</p>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button className="flex-1 bg-green-600 hover:bg-green-500 h-9"
+                disabled={!selectedUser || !amount || Number(amount) <= 0 || create.isPending}
+                onClick={() => create.mutate()}>
+                {create.isPending ? "Creating…" : "Create Transaction"}
+              </Button>
+              <Button variant="outline" className="border-green-900/40 text-gray-400 h-9" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export default function AdminTransactions() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
@@ -230,6 +399,9 @@ export default function AdminTransactions() {
 
   return (
     <div className="mt-4 space-y-4">
+      <div className="flex justify-end">
+        <CreateTransactionDialog onDone={() => qc.invalidateQueries({ queryKey: ["/api/admin/transactions"] })} />
+      </div>
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />

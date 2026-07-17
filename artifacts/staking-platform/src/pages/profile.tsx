@@ -10,11 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import {
   User, Mail, Phone, Shield, Save, KeyRound, Eye, EyeOff,
   CheckCircle, AlertCircle, TrendingUp, Wallet, Calendar, Copy,
-  Camera, Upload, FileCheck, Clock, XCircle, Info,
+  Camera, Upload, FileCheck, Clock, XCircle, Info, LogOut,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getToken } from "@/lib/auth";
 import { useAppAuth } from "@/lib/auth-context";
+import { useLocation } from "wouter";
 
 function authedFetch(url: string, opts: RequestInit = {}) {
   const token = getToken();
@@ -204,7 +205,8 @@ function KycSection() {
 export default function ProfilePage() {
   const { data: me, isLoading } = useGetMe();
   const { toast } = useToast();
-  const { user } = useAppAuth();
+  const { user, logout } = useAppAuth();
+  const [, navigate] = useLocation();
 
   const [profileForm, setProfileForm] = useState({ fullName: "", mpesaNumber: "" });
   const [profileSaving, setProfileSaving] = useState(false);
@@ -411,6 +413,29 @@ export default function ProfilePage() {
 
         {/* KYC Verification */}
         <KycSection />
+
+        {/* Sign Out */}
+        <Card className="bg-[#0d1a10] border-red-900/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base text-white flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-red-900/30 flex items-center justify-center">
+                <LogOut className="w-3.5 h-3.5 text-red-400" />
+              </div>
+              Sign Out
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-gray-500 mb-4">You will be returned to the login screen. Your session data will be cleared.</p>
+            <Button
+              variant="outline"
+              className="border-red-900/40 text-red-400 hover:bg-red-900/15 hover:text-red-300 gap-2"
+              onClick={() => { logout(); queryClient.clear(); navigate("/login"); }}
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out of StakeKE
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* Change Password */}
         <Card className="bg-[#0d1a10] border-green-900/30">

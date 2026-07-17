@@ -118,6 +118,118 @@ router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> =
   }));
 });
 
+// ── Admin: Full profile edit ───────────────────────────────────────────────
+router.put("/admin/users/:id/profile", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid user id" }); return; }
+
+  const target = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
+  if (!target) { res.status(404).json({ error: "User not found" }); return; }
+
+  const { fullName, email, mpesaNumber, location, referralCode, onboardingComplete, createdAt } = req.body as {
+    fullName?: string; email?: string; mpesaNumber?: string; location?: string;
+    referralCode?: string; onboardingComplete?: boolean; createdAt?: string;
+  };
+
+  const updates: Partial<typeof usersTable.$inferInsert> = {};
+
+  if (fullName !== undefined) updates.fullName = fullName || null;
+  if (mpesaNumber !== undefined) updates.mpesaNumber = mpesaNumber || null;
+  if (location !== undefined) updates.location = location || null;
+  if (onboardingComplete !== undefined) updates.onboardingComplete = Boolean(onboardingComplete);
+
+  if (email && email.toLowerCase() !== target.email) {
+    const exists = await db.query.usersTable.findFirst({ where: eq(usersTable.email, email.toLowerCase()) });
+    if (exists) { res.status(409).json({ error: "Email already in use" }); return; }
+    updates.email = email.toLowerCase();
+  }
+
+  if (referralCode && referralCode.toUpperCase() !== target.referralCode) {
+    const exists = await db.query.usersTable.findFirst({ where: eq(usersTable.referralCode, referralCode.toUpperCase()) });
+    if (exists) { res.status(409).json({ error: "Referral code already in use" }); return; }
+    updates.referralCode = referralCode.toUpperCase();
+  }
+
+  if (createdAt) {
+    const d = new Date(createdAt);
+    if (!isNaN(d.getTime())) updates.createdAt = d;
+  }
+
+  const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, id)).returning();
+
+  await db.insert(auditLogsTable).values({
+    adminId: req.userId!,
+    action: `Admin profile edit user #${id}: ${JSON.stringify(updates)}`,
+    targetUserId: id,
+  });
+
+  res.json({
+    ...updated,
+    availableBalance: Number(updated.availableBalance),
+    totalEarnings: Number(updated.totalEarnings),
+    referralRewards: Number(updated.referralRewards),
+  });
+});
+
+// ── Admin: Create transaction for user ─────────────────────────────────────
+router.post("/admin/users/:id/transaction", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid user id" }); return; }
+
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  const { type, amount, description, status = "COMPLETED" } = req.body as {
+    type: string; amount: number; description?: string; status?: string;
+  };
+
+  const VALID_TYPES = ["DEPOSIT", "WITHDRAWAL", "INTEREST", "MANUAL_CREDIT", "MANUAL_DEBIT", "STAKE", "UNSTAKE", "REFERRAL_REWARD"];
+  if (!VALID_TYPES.includes(type)) { res.status(400).json({ error: "Invalid transaction type" }); return; }
+  if (!amount || amount <= 0) { res.status(400).json({ error: "Amount must be positive" }); return; }
+
+  const CREDIT_TYPES = new Set(["DEPOSIT", "INTEREST", "MANUAL_CREDIT", "REFERRAL_REWARD", "UNSTAKE"]);
+  const DEBIT_TYPES = new Set(["WITHDRAWAL", "STAKE", "MANUAL_DEBIT"]);
+
+  await db.transaction(async (trx) => {
+    await trx.insert(transactionsTable).values({
+      userId: id,
+      type: type as any,
+      amount: amount.toFixed(2),
+      status: status as any,
+      description: description ?? `Admin created ${type}`,
+    });
+
+    if (status === "COMPLETED") {
+      const currentBalance = Number(user.availableBalance);
+      let newBalance = currentBalance;
+      if (CREDIT_TYPES.has(type)) newBalance = currentBalance + amount;
+      else if (DEBIT_TYPES.has(type)) newBalance = currentBalance - amount;
+
+      if (newBalance !== currentBalance) {
+        await trx.update(usersTable)
+          .set({ availableBalance: newBalance.toFixed(2) })
+          .where(eq(usersTable.id, id));
+      }
+    }
+  });
+
+  await db.insert(auditLogsTable).values({
+    adminId: req.userId!,
+    action: `Admin created ${type} transaction of KES ${amount} for user #${id}`,
+    targetUserId: id,
+    note: description ?? null,
+  });
+
+  await createNotification({
+    userId: id,
+    type: "ADMIN_MESSAGE",
+    title: `${type.replace(/_/g, " ")} — KES ${amount.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`,
+    message: description ?? `An admin processed a ${type.toLowerCase().replace(/_/g, " ")} on your account.`,
+  });
+
+  res.status(201).json({ success: true });
+});
+
 // ── Analytics ──────────────────────────────────────────────────────────────
 router.get("/admin/analytics", requireAdmin, async (_req, res): Promise<void> => {
   const tvlResult = await db.select({ total: sql<number>`coalesce(sum(current_value), 0)` })

@@ -1,11 +1,11 @@
 import { useState } from "react";
 import AppLayout from "@/components/layout/AppLayout";
-import { useGetReferrals } from "@workspace/api-client-react";
+import { useGetReferrals, useGetMe } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Users, Copy, CheckCircle, TrendingUp, DollarSign, Link2, Gift, Share2, Star, ChevronRight } from "lucide-react";
+import { Users, Copy, CheckCircle, TrendingUp, DollarSign, Link2, Gift, Share2, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 function formatKES(n: number) {
@@ -14,27 +14,47 @@ function formatKES(n: number) {
 
 export default function ReferralsPage() {
   const { data: info, isLoading } = useGetReferrals();
+  const { data: me } = useGetMe();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
+
+  const fullLink = info?.referralLink
+    ? (info.referralLink.startsWith("http") ? info.referralLink : `${window.location.origin}${info.referralLink}`)
+    : "";
 
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(info?.referralLink ?? "");
+      await navigator.clipboard.writeText(fullLink);
       setCopied(true);
-      toast({ title: "Copied!", description: "Referral link copied to clipboard." });
+      toast({ title: "Link copied!", description: "Share it with friends to earn rewards." });
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast({ title: "Could not copy", variant: "destructive" });
     }
   };
 
+  const copyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(info?.referralCode ?? "");
+      setCodeCopied(true);
+      toast({ title: "Code copied!" });
+      setTimeout(() => setCodeCopied(false), 2000);
+    } catch {}
+  };
+
+  const shareWhatsApp = () => {
+    const msg = encodeURIComponent(`💰 Join StakeKE and earn passive income!\n\nUse my referral code *${info?.referralCode}* when signing up:\n${fullLink}\n\nEarn up to 30% ROI on your savings! 🚀`);
+    window.open(`https://wa.me/?text=${msg}`, "_blank");
+  };
+
   const shareLink = async () => {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "Join StakeKE",
-          text: "Earn passive income by staking with StakeKE! Use my referral link to sign up:",
-          url: info?.referralLink ?? "",
+          title: "Join StakeKE — Earn with M-Pesa",
+          text: `Use my referral code ${info?.referralCode} and earn passive income!`,
+          url: fullLink,
         });
       } catch {}
     } else {
@@ -104,28 +124,53 @@ export default function ReferralsPage() {
           ))}
         </div>
 
-        {/* Referral Link */}
+        {/* Referral Code + Link */}
         <Card className="bg-[#0d1a10] border-green-900/30">
           <CardHeader className="pb-3">
             <CardTitle className="text-base text-white flex items-center gap-2">
-              <Link2 className="w-4 h-4 text-green-400" /> Your Referral Link
+              <Link2 className="w-4 h-4 text-green-400" /> Your Referral Code & Link
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex gap-2">
-              <div className="flex-1 bg-[#0a0f0d] border border-green-900/30 rounded-xl px-4 py-2.5 text-sm text-gray-300 truncate font-mono min-w-0">
-                {info?.referralLink ?? `Loading...`}
+            {/* Code */}
+            <div>
+              <p className="text-xs text-gray-500 mb-1.5">Referral Code — share this alone or as part of your link</p>
+              <div className="flex gap-2 items-center">
+                <div className="flex-1 bg-[#0a0f0d] border border-green-700/40 rounded-xl px-4 py-3 font-mono text-2xl font-black text-green-400 tracking-[0.3em] text-center">
+                  {info?.referralCode ?? "——"}
+                </div>
+                <Button onClick={copyCode} variant="outline" className="border-green-700/50 text-green-300 hover:bg-green-900/30 gap-1.5 shrink-0 h-12">
+                  {codeCopied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {codeCopied ? "Copied!" : "Copy"}
+                </Button>
               </div>
-              <Button onClick={copyLink} variant="outline" className="border-green-700/50 text-green-300 hover:bg-green-900/30 gap-2 shrink-0">
-                {copied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                {copied ? "Copied!" : "Copy"}
+            </div>
+
+            {/* Full link */}
+            <div>
+              <p className="text-xs text-gray-500 mb-1.5">Full Referral Link</p>
+              <div className="flex gap-2">
+                <div className="flex-1 bg-[#0a0f0d] border border-green-900/30 rounded-xl px-3 py-2.5 text-xs text-gray-300 truncate font-mono min-w-0">
+                  {fullLink || `${window.location.origin}/sign-up?ref=${info?.referralCode ?? "..."}`}
+                </div>
+                <Button onClick={copyLink} variant="outline" className="border-green-700/50 text-green-300 hover:bg-green-900/30 gap-1.5 shrink-0">
+                  {copied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copied ? "Copied!" : "Copy"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Share buttons */}
+            <div className="flex gap-2">
+              <Button onClick={shareWhatsApp} className="flex-1 bg-[#25D366] hover:bg-[#1ebe5d] text-white gap-2 h-10 font-semibold">
+                <MessageCircle className="w-4 h-4 fill-white" /> Share on WhatsApp
               </Button>
-              <Button onClick={shareLink} className="bg-green-600 hover:bg-green-500 gap-2 shrink-0">
+              <Button onClick={shareLink} variant="outline" className="border-green-700/50 text-green-300 hover:bg-green-900/30 gap-2 shrink-0 h-10">
                 <Share2 className="w-4 h-4" /> Share
               </Button>
             </div>
             <p className="text-xs text-gray-500">
-              Share this link. When friends sign up and make their first stake, you earn rewards automatically.
+              When friends sign up with your code and make their first stake, you earn instantly.
             </p>
           </CardContent>
         </Card>

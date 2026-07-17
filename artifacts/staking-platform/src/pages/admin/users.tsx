@@ -288,26 +288,57 @@ function KycAdminControls({ user, onRefresh }: { user: any; onRefresh: () => voi
 }
 
 function EditUserDialog({ user, onRefresh }: { user: any; onRefresh: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [role, setRole] = useState<string>(user.role);
-  const [adj, setAdj] = useState("");
-  const [note, setNote] = useState("");
+  const [open, setOpen]           = useState(false);
+  const [tab, setTab]             = useState<"profile" | "account">("profile");
+  const [role, setRole]           = useState<string>(user.role);
+  const [adj, setAdj]             = useState("");
+  const [note, setNote]           = useState("");
+  const [profileForm, setProfileForm] = useState({
+    fullName:          user.fullName ?? "",
+    email:             user.email ?? "",
+    mpesaNumber:       user.mpesaNumber ?? "",
+    location:          user.location ?? "",
+    referralCode:      user.referralCode ?? "",
+    createdAt:         user.createdAt ? new Date(user.createdAt).toISOString().slice(0, 16) : "",
+    onboardingComplete: user.onboardingComplete ?? false,
+  });
   const { toast } = useToast();
 
   const update = useAdminUpdateUser({
     mutation: {
       onSuccess: () => {
-        toast({ title: "User updated successfully" });
+        toast({ title: "Account updated" });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-        setOpen(false);
-        setAdj("");
-        setNote("");
+        setOpen(false); setAdj(""); setNote("");
         onRefresh();
       },
-      onError: (e: any) => {
-        toast({ title: "Error", description: e?.data?.error ?? e?.message ?? "Try again", variant: "destructive" });
-      },
+      onError: (e: any) => toast({ title: "Error", description: e?.data?.error ?? e?.message ?? "Try again", variant: "destructive" }),
     },
+  });
+
+  const saveProfile = useMutation({
+    mutationFn: async () => {
+      const res = await authedFetch(`/api/admin/users/${user.id}/profile`, {
+        method: "PUT",
+        body: JSON.stringify({
+          fullName:          profileForm.fullName || null,
+          email:             profileForm.email,
+          mpesaNumber:       profileForm.mpesaNumber || null,
+          location:          profileForm.location || null,
+          referralCode:      profileForm.referralCode || undefined,
+          onboardingComplete: profileForm.onboardingComplete,
+          createdAt:         profileForm.createdAt ? new Date(profileForm.createdAt).toISOString() : undefined,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Profile updated" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      onRefresh();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const adjNum = Number(adj);
@@ -319,7 +350,7 @@ function EditUserDialog({ user, onRefresh }: { user: any; onRefresh: () => void 
         onClick={() => setOpen(true)}>
         <Edit className="w-3.5 h-3.5" />
       </Button>
-      <DialogContent className="bg-[#0d1a10] border-green-900/40 text-white max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-[#0d1a10] border-green-900/40 text-white max-w-lg max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-green-800 flex items-center justify-center text-sm font-bold">
@@ -328,84 +359,141 @@ function EditUserDialog({ user, onRefresh }: { user: any; onRefresh: () => void 
             {user.fullName ?? user.email}
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-5 pt-2">
-          <div className="bg-[#0a1410] rounded-xl p-3 border border-green-900/20 space-y-2 text-sm">
-            <div className="flex items-center gap-2 text-gray-400">
-              <Mail className="w-3.5 h-3.5" /><span className="truncate text-xs">{user.email}</span>
-            </div>
-            {user.mpesaNumber && (
-              <div className="flex items-center gap-2 text-gray-400">
-                <Phone className="w-3.5 h-3.5" /><span className="text-xs">{user.mpesaNumber}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-2 text-gray-400">
-              <Wallet className="w-3.5 h-3.5" />
-              <span className="text-xs">Balance: <strong className="text-green-400">{formatKES(user.availableBalance)}</strong></span>
-            </div>
-            <div className="flex items-center gap-2 text-gray-400">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span className="text-xs">{user.activeStakesCount ?? 0} active stakes · KYC: {user.kycStatus ?? "NONE"}</span>
-            </div>
-          </div>
 
-          <div>
-            <Label className="text-gray-300">Role</Label>
-            <Select value={role} onValueChange={setRole}>
-              <SelectTrigger className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-[#0d1a10] border-green-900/40 text-white">
-                <SelectItem value="USER">User</SelectItem>
-                <SelectItem value="ADMIN">Admin</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label className="text-gray-300">Balance Adjustment</Label>
-            <p className="text-xs text-gray-500 mt-0.5 mb-1.5">Positive = credit, negative = debit</p>
-            <div className="flex gap-2">
-              <button onClick={() => setAdj(adj.startsWith("-") ? adj.slice(1) : "-" + adj)}
-                className={`w-9 h-9 rounded-lg flex items-center justify-center border shrink-0 ${
-                  adj.startsWith("-") ? "border-red-700/50 bg-red-900/20 text-red-400" : "border-green-900/40 text-green-400"
-                }`}>
-                {adj.startsWith("-") ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-              </button>
-              <Input value={adj.replace("-", "")} onChange={(e) => setAdj((adj.startsWith("-") ? "-" : "") + e.target.value)}
-                type="number" placeholder="e.g. 500"
-                className="bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500" />
-            </div>
-            {adj && !isNaN(adjNum) && adjNum !== 0 && (
-              <div className="mt-2 text-xs text-gray-400 bg-[#0a1410] rounded-lg p-2 border border-green-900/20">
-                New balance: <strong className={newBalance >= 0 ? "text-green-400" : "text-red-400"}>{formatKES(newBalance)}</strong>
-              </div>
-            )}
-          </div>
-
-          {adj && (
-            <div>
-              <Label className="text-gray-300">Adjustment Note <span className="text-red-400">*</span></Label>
-              <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason for this adjustment"
-                className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500" />
-            </div>
-          )}
-
-          <div className="flex gap-2 pt-1">
-            <Button className="flex-1 bg-green-600 hover:bg-green-500"
-              disabled={update.isPending || (!!adj && !note)}
-              onClick={() => update.mutate({ id: user.id, data: {
-                role: role as any,
-                ...(adj && adjNum !== 0 ? { balanceAdjustment: adjNum, adjustmentNote: note } : {}),
-              }})}>
-              {update.isPending ? "Saving..." : "Save Changes"}
-            </Button>
-            <Button variant="outline" className={`border-green-900/40 gap-1.5 ${user.isLocked ? "text-green-400 hover:bg-green-900/20" : "text-red-400 hover:bg-red-900/20"}`}
-              disabled={update.isPending}
-              onClick={() => update.mutate({ id: user.id, data: { isLocked: !user.isLocked } })}>
-              {user.isLocked ? <><Unlock className="w-3.5 h-3.5" /> Unlock</> : <><Lock className="w-3.5 h-3.5" /> Lock</>}
-            </Button>
-          </div>
+        {/* Tab switcher */}
+        <div className="flex rounded-xl bg-[#060d08] border border-green-900/20 p-1 gap-1 mt-1">
+          {(["profile", "account"] as const).map((t) => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-semibold capitalize ${tab === t ? "bg-green-700 text-white" : "text-gray-400 hover:text-white"}`}>
+              {t === "profile" ? "Profile & Details" : "Account & Balance"}
+            </button>
+          ))}
         </div>
+
+        {/* ── PROFILE TAB ── */}
+        {tab === "profile" && (
+          <div className="space-y-3 pt-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-gray-400 text-xs">Full Name</Label>
+                <Input value={profileForm.fullName} onChange={(e) => setProfileForm(p => ({ ...p, fullName: e.target.value }))}
+                  placeholder="Full name"
+                  className="mt-1 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-8 text-xs" />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs">Email</Label>
+                <Input value={profileForm.email} onChange={(e) => setProfileForm(p => ({ ...p, email: e.target.value }))}
+                  placeholder="email@example.com" type="email"
+                  className="mt-1 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-8 text-xs" />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs">M-Pesa Number</Label>
+                <Input value={profileForm.mpesaNumber} onChange={(e) => setProfileForm(p => ({ ...p, mpesaNumber: e.target.value }))}
+                  placeholder="07XXXXXXXX"
+                  className="mt-1 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-8 text-xs" />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs">Location</Label>
+                <Input value={profileForm.location} onChange={(e) => setProfileForm(p => ({ ...p, location: e.target.value }))}
+                  placeholder="e.g. Nairobi"
+                  className="mt-1 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-8 text-xs" />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs">Referral Code</Label>
+                <Input value={profileForm.referralCode} onChange={(e) => setProfileForm(p => ({ ...p, referralCode: e.target.value.toUpperCase() }))}
+                  placeholder="ABCD1234"
+                  className="mt-1 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-8 text-xs font-mono uppercase" />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs">Join Date</Label>
+                <Input value={profileForm.createdAt} onChange={(e) => setProfileForm(p => ({ ...p, createdAt: e.target.value }))}
+                  type="datetime-local"
+                  className="mt-1 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-8 text-xs" />
+              </div>
+            </div>
+            <div className="flex items-center gap-3 bg-[#0a1410] rounded-xl p-3 border border-green-900/20">
+              <input type="checkbox" id="onboarding" checked={profileForm.onboardingComplete}
+                onChange={(e) => setProfileForm(p => ({ ...p, onboardingComplete: e.target.checked }))}
+                className="w-4 h-4 accent-green-500" />
+              <label htmlFor="onboarding" className="text-xs text-gray-300 cursor-pointer">Onboarding complete</label>
+            </div>
+            <div className="bg-[#0a1410] rounded-xl p-3 border border-green-900/20 text-xs text-gray-400 space-y-1">
+              <div className="flex justify-between"><span>User ID</span><span className="text-white">#{user.id}</span></div>
+              <div className="flex justify-between"><span>Balance</span><span className="text-green-400 font-semibold">{formatKES(user.availableBalance)}</span></div>
+              <div className="flex justify-between"><span>Total Earnings</span><span className="text-yellow-400">{formatKES(user.totalEarnings ?? 0)}</span></div>
+              <div className="flex justify-between"><span>Active Stakes</span><span className="text-white">{user.activeStakesCount ?? 0}</span></div>
+              <div className="flex justify-between"><span>KYC</span><span className="text-white">{user.kycStatus ?? "NONE"}</span></div>
+            </div>
+            <Button className="w-full bg-green-600 hover:bg-green-500 h-9"
+              disabled={saveProfile.isPending}
+              onClick={() => saveProfile.mutate()}>
+              {saveProfile.isPending ? "Saving…" : "Save Profile Changes"}
+            </Button>
+          </div>
+        )}
+
+        {/* ── ACCOUNT TAB ── */}
+        {tab === "account" && (
+          <div className="space-y-4 pt-1">
+            <div>
+              <Label className="text-gray-300">Role</Label>
+              <Select value={role} onValueChange={setRole}>
+                <SelectTrigger className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0d1a10] border-green-900/40 text-white">
+                  <SelectItem value="USER">User</SelectItem>
+                  <SelectItem value="ADMIN">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-gray-300">Balance Adjustment</Label>
+              <p className="text-xs text-gray-500 mt-0.5 mb-1.5">Positive = credit, negative = debit</p>
+              <div className="flex gap-2">
+                <button onClick={() => setAdj(adj.startsWith("-") ? adj.slice(1) : "-" + adj)}
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center border shrink-0 ${
+                    adj.startsWith("-") ? "border-red-700/50 bg-red-900/20 text-red-400" : "border-green-900/40 text-green-400"
+                  }`}>
+                  {adj.startsWith("-") ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                </button>
+                <Input value={adj.replace("-", "")} onChange={(e) => setAdj((adj.startsWith("-") ? "-" : "") + e.target.value)}
+                  type="number" placeholder="e.g. 500"
+                  className="bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500" />
+              </div>
+              {adj && !isNaN(adjNum) && adjNum !== 0 && (
+                <div className="mt-2 text-xs text-gray-400 bg-[#0a1410] rounded-lg p-2 border border-green-900/20">
+                  New balance: <strong className={newBalance >= 0 ? "text-green-400" : "text-red-400"}>{formatKES(newBalance)}</strong>
+                </div>
+              )}
+            </div>
+
+            {adj && (
+              <div>
+                <Label className="text-gray-300">Adjustment Note <span className="text-red-400">*</span></Label>
+                <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason for this adjustment"
+                  className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500" />
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <Button className="flex-1 bg-green-600 hover:bg-green-500"
+                disabled={update.isPending || (!!adj && !note)}
+                onClick={() => update.mutate({ id: user.id, data: {
+                  role: role as any,
+                  ...(adj && adjNum !== 0 ? { balanceAdjustment: adjNum, adjustmentNote: note } : {}),
+                }})}>
+                {update.isPending ? "Saving..." : "Save Account"}
+              </Button>
+              <Button variant="outline" className={`border-green-900/40 gap-1.5 ${user.isLocked ? "text-green-400 hover:bg-green-900/20" : "text-red-400 hover:bg-red-900/20"}`}
+                disabled={update.isPending}
+                onClick={() => update.mutate({ id: user.id, data: { isLocked: !user.isLocked } })}>
+                {user.isLocked ? <><Unlock className="w-3.5 h-3.5" /> Unlock</> : <><Lock className="w-3.5 h-3.5" /> Lock</>}
+              </Button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

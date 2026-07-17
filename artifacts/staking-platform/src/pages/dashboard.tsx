@@ -336,11 +336,79 @@ function WithdrawDialog({ phone, max }: { phone?: string | null; max: number }) 
   );
 }
 
+/* ── Transaction Detail Modal ────────────────────────────────── */
+function TxDetailModal({ tx, onClose }: { tx: any; onClose: () => void }) {
+  const credit = TX_CREDIT.has(tx.type);
+  const info   = TX_META[tx.type] ?? { sym: "·", label: tx.type };
+  const { toast } = useToast();
+
+  const copyRef = () => {
+    if (tx.externalReference) {
+      navigator.clipboard.writeText(tx.externalReference).catch(() => {});
+      toast({ title: "Reference copied!" });
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="bg-[#0d1a10] border-green-900/40 text-white max-w-sm mx-4">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold ${credit ? "bg-[#0a2510] text-green-400" : "bg-[#1a0808] text-red-400"}`}>
+              {info.sym}
+            </div>
+            {info.label}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 pt-1">
+          <div className="rounded-xl border border-green-900/25 bg-[#0a1208] p-4 text-center">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Amount</p>
+            <p className={`text-3xl font-black ${credit ? "text-green-400" : "text-red-400"}`}>
+              {credit ? "+" : "−"}{fmt(tx.amount)}
+            </p>
+          </div>
+          <div className="space-y-2 text-xs">
+            {[
+              { label: "Status", value: tx.status, colored: true },
+              { label: "Type", value: tx.type.replace(/_/g, " ") },
+              { label: "Description", value: tx.description ?? "—" },
+              { label: "Date", value: new Date(tx.createdAt).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" }) },
+              tx.phoneNumber ? { label: "Phone", value: tx.phoneNumber } : null,
+              tx.externalReference ? { label: "M-Pesa Ref", value: tx.externalReference, copy: true } : null,
+            ].filter(Boolean).map((row: any) => (
+              <div key={row.label} className="flex justify-between items-center py-1.5 border-b border-green-900/10 last:border-0">
+                <span className="text-gray-500">{row.label}</span>
+                <div className="flex items-center gap-1.5">
+                  {row.colored ? (
+                    <span className={`font-semibold ${
+                      tx.status === "COMPLETED" ? "text-green-400" :
+                      tx.status === "PENDING"   ? "text-yellow-400" :
+                      tx.status === "FAILED"    ? "text-red-400" : "text-gray-400"
+                    }`}>{row.value}</span>
+                  ) : (
+                    <span className="text-white text-right max-w-[160px] truncate">{row.value}</span>
+                  )}
+                  {row.copy && (
+                    <button onClick={copyRef} className="text-gray-600 hover:text-green-400">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ── Dashboard ───────────────────────────────────────────────── */
 export default function DashboardPage() {
   const { data: me }              = useGetMe();
   const { data: dash, isLoading } = useGetDashboard();
   const { data: stakes = [] }     = useListStakes();
+  const [selectedTx, setSelectedTx] = useState<any>(null);
 
   const activeStakes   = (stakes as any[]).filter((s) => s.status === "ACTIVE");
   const totalPortfolio = (dash?.availableBalance ?? 0) + (dash?.totalStaked ?? 0);
@@ -574,7 +642,8 @@ export default function DashboardPage() {
                 const credit = TX_CREDIT.has(tx.type);
                 const info   = TX_META[tx.type] ?? { sym: "·", label: tx.type };
                 return (
-                  <div key={tx.id} className="flex items-center gap-3 p-2.5 rounded-xl">
+                  <button key={tx.id} onClick={() => setSelectedTx(tx)}
+                    className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-green-900/10 text-left">
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${
                       credit ? "bg-[#0a2510] text-green-400" : "bg-[#1a0808] text-red-400"
                     }`}>
@@ -593,7 +662,7 @@ export default function DashboardPage() {
                         tx.status === "PENDING"   ? "text-yellow-500" : "text-red-500"
                       }`}>{tx.status}</span>
                     </div>
-                  </div>
+                  </button>
                 );
               })
             )}
@@ -617,6 +686,8 @@ export default function DashboardPage() {
         )}
 
       </div>
+
+      {selectedTx && <TxDetailModal tx={selectedTx} onClose={() => setSelectedTx(null)} />}
     </AppLayout>
   );
 }
