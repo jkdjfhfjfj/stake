@@ -20,7 +20,7 @@ async function getGroqApiKey(): Promise<string> {
 router.post("/ai/chat", requireAuth, async (req, res): Promise<void> => {
   const apiKey = await getGroqApiKey();
   const apiBase = process.env.QROK_API_BASE_URL ?? "https://api.groq.com/openai/v1";
-  const model = process.env.QROK_MODEL ?? "llama3-8b-8192";
+  const model = process.env.QROK_MODEL ?? "llama-3.3-70b-versatile";
 
   if (!apiKey) {
     res.status(503).json({ error: "AI assistant is not configured." });

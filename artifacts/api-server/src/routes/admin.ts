@@ -761,30 +761,39 @@ router.get("/settings/public", async (_req, res): Promise<void> => {
 
 // ── Delete User ────────────────────────────────────────────────────────────────
 router.delete("/admin/users/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = Number(req.params.id);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid user id" }); return; }
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) { res.status(400).json({ error: "Invalid user id" }); return; }
 
-  const target = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
-  if (!target) { res.status(404).json({ error: "User not found" }); return; }
-  if (target.role === "ADMIN") { res.status(403).json({ error: "Cannot delete admin users" }); return; }
-  if (target.id === req.userId!) { res.status(403).json({ error: "Cannot delete your own account" }); return; }
+    const target = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
+    if (!target) { res.status(404).json({ error: "User not found" }); return; }
+    if (target.role === "ADMIN") { res.status(403).json({ error: "Cannot delete admin users" }); return; }
+    if (target.id === req.userId!) { res.status(403).json({ error: "Cannot delete your own account" }); return; }
 
-  // Delete all related records first
-  await db.delete(transactionsTable).where(eq(transactionsTable.userId, id));
-  await db.delete(notificationsTable).where(eq(notificationsTable.userId, id));
-  await db.delete(referralsTable).where(eq(referralsTable.referrerId, id));
-  await db.delete(referralsTable).where(eq(referralsTable.refereeId, id));
-  await db.delete(stakesTable).where(eq(stakesTable.userId, id));
-  await db.delete(usersTable).where(eq(usersTable.id, id));
+    // Log BEFORE deleting (FK on targetUserId would fail after user is gone)
+    await db.insert(auditLogsTable).values({
+      adminId: req.userId!,
+      action: `Deleted user #${id} (${target.email})`,
+      targetUserId: id,
+      note: `Deleted by admin. Email: ${target.email}`,
+    });
 
-  await db.insert(auditLogsTable).values({
-    adminId: req.userId!,
-    action: `Deleted user #${id} (${target.email})`,
-    targetUserId: null,
-    note: `Deleted by admin. Email: ${target.email}`,
-  });
+    // Delete all related records first, then the user
+    await db.delete(transactionsTable).where(eq(transactionsTable.userId, id));
+    await db.delete(notificationsTable).where(eq(notificationsTable.userId, id));
+    await db.delete(referralsTable).where(eq(referralsTable.referrerId, id));
+    await db.delete(referralsTable).where(eq(referralsTable.refereeId, id));
+    await db.delete(stakesTable).where(eq(stakesTable.userId, id));
+    // Nullify the audit log targetUserId before deleting the user (FK)
+    await db.update(auditLogsTable)
+      .set({ targetUserId: null } as any)
+      .where(eq(auditLogsTable.targetUserId as any, id));
+    await db.delete(usersTable).where(eq(usersTable.id, id));
 
-  res.json({ ok: true });
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "Failed to delete user" });
+  }
 });
 
 // ── User Transactions (admin view) ──────────────────────────────────────────

@@ -448,19 +448,19 @@ export default function ProfilePage() {
               </div>
               <div>
                 <Label className="text-gray-400 text-xs mb-1.5 block">Your Referral Link</Label>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-[#0a0f0d] border border-green-900/20 rounded-xl px-3 py-2 text-xs text-green-400/80 font-mono break-all flex items-center gap-2">
+                <div className="bg-[#0a0f0d] border border-green-900/20 rounded-xl px-3 py-2 text-xs text-green-400/80 font-mono overflow-hidden">
+                  <div className="flex items-center gap-2 min-w-0">
                     <Link2 className="w-3.5 h-3.5 shrink-0 text-gray-500" />
-                    <span className="truncate">{`${window.location.origin}/register?ref=${me.referralCode}`}</span>
+                    <span className="truncate flex-1 min-w-0">{`${window.location.origin}/register?ref=${me.referralCode}`}</span>
                   </div>
-                  <Button variant="outline" size="sm" className="border-green-700/50 text-green-300 hover:bg-green-900/30 gap-1.5 shrink-0 h-9"
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(`${window.location.origin}/register?ref=${me.referralCode}`).catch(() => {});
-                      toast({ title: "Referral link copied!" });
-                    }}>
-                    <Copy className="w-3.5 h-3.5" /> Copy Link
-                  </Button>
                 </div>
+                <Button variant="outline" size="sm" className="mt-2 w-full border-green-700/50 text-green-300 hover:bg-green-900/30 gap-1.5 h-9"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(`${window.location.origin}/register?ref=${me.referralCode}`).catch(() => {});
+                    toast({ title: "Referral link copied!" });
+                  }}>
+                  <Copy className="w-3.5 h-3.5" /> Copy Link
+                </Button>
               </div>
               <p className="text-xs text-gray-500">Share your link or code to earn referral rewards when friends join and stake.</p>
             </CardContent>

@@ -18,6 +18,11 @@ import NotificationsPage from "@/pages/notifications";
 import AdminPage from "@/pages/admin/index";
 import ProfilePage from "@/pages/profile";
 import NotFound from "@/pages/not-found";
+import BlogIndex from "@/pages/blog/index";
+import HowToInvestMpesa from "@/pages/blog/how-to-invest-mpesa-kenya";
+import StakingPlansRoiExplained from "@/pages/blog/staking-plans-roi-explained";
+import EarnReferralRewards from "@/pages/blog/earn-referral-rewards-kenya";
+import MpesaOnlineInvestmentSafety from "@/pages/blog/mpesa-online-investment-safety";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { user, loading } = useAppAuth();
@@ -74,6 +79,12 @@ function Router() {
       <Route path="/notifications" component={() => <ProtectedRoute component={NotificationsPage} />} />
       <Route path="/profile" component={() => <ProtectedRoute component={ProfilePage} />} />
       <Route path="/admin" component={() => <AdminRoute component={AdminPage} />} />
+      {/* Public blog / SEO articles */}
+      <Route path="/blog" component={BlogIndex} />
+      <Route path="/blog/how-to-invest-mpesa-kenya" component={HowToInvestMpesa} />
+      <Route path="/blog/staking-plans-roi-explained" component={StakingPlansRoiExplained} />
+      <Route path="/blog/earn-referral-rewards-kenya" component={EarnReferralRewards} />
+      <Route path="/blog/mpesa-online-investment-safety" component={MpesaOnlineInvestmentSafety} />
       <Route component={NotFound} />
     </Switch>
   );

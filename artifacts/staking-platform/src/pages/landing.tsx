@@ -108,6 +108,7 @@ export default function LandingPage() {
             <button onClick={() => scrollTo("plans")} className="hover:text-white transition-colors">Plans</button>
             <button onClick={() => scrollTo("how")} className="hover:text-white transition-colors">How it works</button>
             <button onClick={() => scrollTo("features")} className="hover:text-white transition-colors">Features</button>
+            <Link href="/blog" className="hover:text-white transition-colors">Investment Guide</Link>
           </div>
           <div className="flex gap-2 items-center">
             <Link href="/login">
