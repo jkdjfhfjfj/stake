@@ -12,6 +12,13 @@ import {
 } from "@workspace/api-zod";
 import { nanoid } from "nanoid";
 
+function getCallbackBaseUrl(): string {
+  if (process.env.BASE_URL) return process.env.BASE_URL.replace(/\/$/, "");
+  if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL.replace(/\/$/, "");
+  if (process.env.REPLIT_DOMAINS) return `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`;
+  return "http://localhost:8080";
+}
+
 const router = Router();
 
 function parseTransaction(t: typeof transactionsTable.$inferSelect) {
@@ -57,8 +64,7 @@ router.post("/transactions/deposit", requireAuth, async (req, res): Promise<void
     phoneNumber,
   });
 
-  const domains = (process.env.REPLIT_DOMAINS ?? "").split(",")[0];
-  const callbackUrl = `https://${domains}/api/webhooks/payhero`;
+  const callbackUrl = `${getCallbackBaseUrl()}/api/webhooks/payhero`;
 
   try {
     const result = await initiateSTKPush({
@@ -82,6 +88,26 @@ router.post("/transactions/deposit", requireAuth, async (req, res): Promise<void
 
     res.status(502).json({ error: err.message ?? "STK push failed" });
   }
+});
+
+// Poll deposit status by externalReference — used by the frontend after STK Push
+router.get("/transactions/status/:reference", requireAuth, async (req, res): Promise<void> => {
+  const reference = String(req.params.reference);
+  const tx = await db.query.transactionsTable.findFirst({
+    where: eq(transactionsTable.externalReference, reference),
+  });
+
+  if (!tx || tx.userId !== req.userId!) {
+    res.status(404).json({ error: "Transaction not found" });
+    return;
+  }
+
+  res.json({
+    status: tx.status,
+    amount: Number(tx.amount),
+    type: tx.type,
+    createdAt: tx.createdAt.toISOString(),
+  });
 });
 
 router.post("/transactions/withdraw", requireAuth, async (req, res): Promise<void> => {

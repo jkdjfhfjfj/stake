@@ -466,12 +466,22 @@ router.post("/admin/cron/process-stakes", requireAdmin, async (_req, res): Promi
           totalEarnings: (Number(user!.totalEarnings) + interest).toFixed(2),
         }).where(eq(usersTable.id, stake.userId));
 
+        // Log principal return as UNSTAKE so transaction history fully explains the balance change
+        await tx.insert(transactionsTable).values({
+          userId: stake.userId,
+          type: "UNSTAKE",
+          amount: principal.toFixed(2),
+          status: "COMPLETED",
+          description: `Principal returned: ${stake.plan.name}`,
+        });
+
+        // Log interest separately
         await tx.insert(transactionsTable).values({
           userId: stake.userId,
           type: "INTEREST",
           amount: interest.toFixed(2),
           status: "COMPLETED",
-          description: `Matured: ${stake.plan.name} returned with ${stake.plan.roiPercent}% ROI`,
+          description: `Interest earned: ${stake.plan.name} (${stake.plan.roiPercent}% ROI)`,
         });
       });
 

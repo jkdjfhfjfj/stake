@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import {
   useGetDashboard, useGetMe, useInitiateDeposit,
@@ -55,20 +55,98 @@ const TX_META: Record<string, { sym: string; label: string }> = {
   UNSTAKE:         { sym: "↩", label: "Unstake" },
 };
 
+/* ── helpers ── */
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem("stakeke_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+type PollState = "idle" | "waiting" | "completed" | "failed" | "timeout";
+const POLL_INTERVAL_MS = 3000;
+const POLL_TIMEOUT_MS  = 120_000; // 2 minutes
+
 /* ── Deposit Dialog ──────────────────────────────────────────── */
 function DepositDialog({ phone }: { phone?: string | null }) {
-  const [amount, setAmount] = useState("");
-  const [phoneN, setPhoneN] = useState(phone ?? "");
-  const [open, setOpen]     = useState(false);
-  const { toast }           = useToast();
-  const presets             = [500, 1000, 5000, 10000];
+  const [amount, setAmount]     = useState("");
+  const [phoneN, setPhoneN]     = useState(phone ?? "");
+  const [open, setOpen]         = useState(false);
+  const [pollState, setPollState] = useState<PollState>("idle");
+  const [externalRef, setExternalRef] = useState("");
+  const [countdown, setCountdown]     = useState(0);
+  const { toast }               = useToast();
+  const presets                 = [500, 1000, 5000, 10000];
+  const pollRef                 = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef              = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startedAtRef            = useRef<number>(0);
+
+  const stopPolling = () => {
+    if (pollRef.current)    clearInterval(pollRef.current);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    pollRef.current = null;
+    timeoutRef.current = null;
+  };
+
+  useEffect(() => {
+    if (pollState !== "waiting" || !externalRef) return;
+
+    startedAtRef.current = Date.now();
+
+    const doPoll = async () => {
+      try {
+        const res = await fetch(`/api/transactions/status/${externalRef}`, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) return;
+        const data = await res.json() as { status: string };
+
+        const elapsed = Date.now() - startedAtRef.current;
+        setCountdown(Math.max(0, Math.round((POLL_TIMEOUT_MS - elapsed) / 1000)));
+
+        if (data.status === "COMPLETED") {
+          stopPolling();
+          setPollState("completed");
+          queryClient.invalidateQueries({ queryKey: ["/api/users/me/dashboard"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/users/me"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+          toast({ title: "Deposit confirmed!", description: `KES ${Number(amount).toLocaleString("en-KE", { minimumFractionDigits: 2 })} credited to your balance.` });
+          setTimeout(() => { setOpen(false); resetForm(); }, 2000);
+        } else if (data.status === "FAILED") {
+          stopPolling();
+          setPollState("failed");
+        }
+      } catch { /* network error — keep polling */ }
+    };
+
+    pollRef.current = setInterval(doPoll, POLL_INTERVAL_MS);
+    doPoll(); // immediate first check
+
+    timeoutRef.current = setTimeout(() => {
+      stopPolling();
+      if (pollState === "waiting") setPollState("timeout");
+    }, POLL_TIMEOUT_MS);
+
+    return stopPolling;
+  }, [pollState, externalRef]);
+
+  useEffect(() => {
+    if (!open) { stopPolling(); resetForm(); }
+  }, [open]);
+
+  const resetForm = () => {
+    setAmount(""); setPollState("idle"); setExternalRef(""); setCountdown(0);
+  };
 
   const deposit = useInitiateDeposit({
     mutation: {
-      onSuccess: () => {
-        toast({ title: "STK Push sent!", description: "Enter your M-Pesa PIN to complete." });
-        queryClient.invalidateQueries({ queryKey: ["/api/users/me/dashboard"] });
-        setOpen(false); setAmount("");
+      onSuccess: (data: any) => {
+        const ref = data?.externalReference;
+        if (ref) {
+          setExternalRef(ref);
+          setPollState("waiting");
+          setCountdown(Math.round(POLL_TIMEOUT_MS / 1000));
+        } else {
+          toast({ title: "STK Push sent!", description: "Enter your M-Pesa PIN to complete." });
+        }
       },
       onError: (e: any) => {
         toast({ title: "Deposit failed", description: e?.data?.error ?? e?.message, variant: "destructive" });
@@ -89,50 +167,101 @@ function DepositDialog({ phone }: { phone?: string | null }) {
             <ArrowDownLeft className="w-4 h-4 text-green-400" /> Deposit via M-Pesa
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 pt-1">
-          <div>
-            <Label className="text-gray-400 text-xs">Amount (KES)</Label>
-            <Input value={amount} onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00" type="number"
-              className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white text-xl h-12 focus:border-green-500" />
-            <div className="grid grid-cols-4 gap-1.5 mt-2">
-              {presets.map((p) => (
-                <button key={p} onClick={() => setAmount(String(p))}
-                  className={`py-2 text-xs rounded-lg border font-medium ${
-                    amount === String(p)
-                      ? "border-green-500 bg-[#0a2510] text-green-300"
-                      : "border-green-900/30 text-gray-500"
-                  }`}>
-                  {p >= 1000 ? `${p / 1000}K` : p}
-                </button>
-              ))}
+
+        {/* ── Waiting for M-Pesa PIN ── */}
+        {pollState === "waiting" && (
+          <div className="py-6 flex flex-col items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-[#0a2510] border-2 border-green-700/50 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-full border-2 border-green-400 border-t-transparent animate-spin" />
             </div>
+            <div className="text-center">
+              <p className="text-white font-semibold mb-1">Waiting for M-Pesa PIN</p>
+              <p className="text-gray-400 text-sm">Check your Safaricom prompt and enter your PIN</p>
+              <p className="text-gray-600 text-xs mt-2">Times out in {countdown}s</p>
+            </div>
+            <button onClick={() => { stopPolling(); setPollState("idle"); }}
+              className="text-xs text-gray-500 underline">Cancel</button>
           </div>
-          <div>
-            <Label className="text-gray-400 text-xs">M-Pesa Number</Label>
-            <Input value={phoneN} onChange={(e) => setPhoneN(e.target.value)}
-              placeholder="07XXXXXXXX"
-              className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500" />
+        )}
+
+        {/* ── Confirmed ── */}
+        {pollState === "completed" && (
+          <div className="py-6 flex flex-col items-center gap-3">
+            <div className="w-16 h-16 rounded-full bg-[#0a2510] border-2 border-green-500 flex items-center justify-center">
+              <span className="text-2xl">✓</span>
+            </div>
+            <p className="text-white font-semibold">Deposit Confirmed!</p>
+            <p className="text-green-400 text-lg font-black">{fmt(Number(amount))}</p>
+            <p className="text-gray-400 text-sm">Added to your balance</p>
           </div>
-          {Number(amount) > 0 && (
-            <div className="bg-[#0a1a0d] rounded-xl p-3 border border-green-900/30 text-sm">
-              <div className="flex justify-between text-gray-400 mb-1">
-                <span>You send</span>
-                <span className="text-white font-semibold">{fmt(Number(amount))}</span>
-              </div>
-              <div className="flex justify-between text-gray-400">
-                <span>Credited instantly</span>
-                <span className="text-green-400 font-semibold">{fmt(Number(amount))}</span>
+        )}
+
+        {/* ── Failed ── */}
+        {(pollState === "failed" || pollState === "timeout") && (
+          <div className="py-6 flex flex-col items-center gap-3">
+            <div className="w-16 h-16 rounded-full bg-[#1a0808] border-2 border-red-800/50 flex items-center justify-center">
+              <span className="text-2xl">✕</span>
+            </div>
+            <p className="text-white font-semibold">
+              {pollState === "timeout" ? "Confirmation timed out" : "Payment failed"}
+            </p>
+            <p className="text-gray-400 text-sm text-center">
+              {pollState === "timeout"
+                ? "Your balance will update automatically if payment was successful."
+                : "The M-Pesa payment was cancelled or failed. Please try again."}
+            </p>
+            <Button size="sm" onClick={() => setPollState("idle")}
+              className="bg-green-600 hover:bg-green-500">Try Again</Button>
+          </div>
+        )}
+
+        {/* ── Input form ── */}
+        {pollState === "idle" && (
+          <div className="space-y-4 pt-1">
+            <div>
+              <Label className="text-gray-400 text-xs">Amount (KES)</Label>
+              <Input value={amount} onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00" type="number"
+                className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white text-xl h-12 focus:border-green-500" />
+              <div className="grid grid-cols-4 gap-1.5 mt-2">
+                {presets.map((p) => (
+                  <button key={p} onClick={() => setAmount(String(p))}
+                    className={`py-2 text-xs rounded-lg border font-medium ${
+                      amount === String(p)
+                        ? "border-green-500 bg-[#0a2510] text-green-300"
+                        : "border-green-900/30 text-gray-500"
+                    }`}>
+                    {p >= 1000 ? `${p / 1000}K` : p}
+                  </button>
+                ))}
               </div>
             </div>
-          )}
-          <Button className="w-full bg-green-600 hover:bg-green-500 h-11 font-semibold"
-            disabled={!amount || !phoneN || deposit.isPending}
-            onClick={() => deposit.mutate({ data: { amount: Number(amount), phoneNumber: phoneN } })}>
-            {deposit.isPending ? "Sending…" : "Send STK Push"}
-          </Button>
-          <p className="text-[11px] text-center text-gray-600">You'll receive a prompt on your Safaricom line</p>
-        </div>
+            <div>
+              <Label className="text-gray-400 text-xs">M-Pesa Number</Label>
+              <Input value={phoneN} onChange={(e) => setPhoneN(e.target.value)}
+                placeholder="07XXXXXXXX"
+                className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500" />
+            </div>
+            {Number(amount) > 0 && (
+              <div className="bg-[#0a1a0d] rounded-xl p-3 border border-green-900/30 text-sm">
+                <div className="flex justify-between text-gray-400 mb-1">
+                  <span>You send</span>
+                  <span className="text-white font-semibold">{fmt(Number(amount))}</span>
+                </div>
+                <div className="flex justify-between text-gray-400">
+                  <span>Credited instantly</span>
+                  <span className="text-green-400 font-semibold">{fmt(Number(amount))}</span>
+                </div>
+              </div>
+            )}
+            <Button className="w-full bg-green-600 hover:bg-green-500 h-11 font-semibold"
+              disabled={!amount || !phoneN || deposit.isPending}
+              onClick={() => deposit.mutate({ data: { amount: Number(amount), phoneNumber: phoneN } })}>
+              {deposit.isPending ? "Sending…" : "Send STK Push"}
+            </Button>
+            <p className="text-[11px] text-center text-gray-600">You'll receive a prompt on your Safaricom line</p>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
