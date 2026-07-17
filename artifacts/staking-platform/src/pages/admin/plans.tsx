@@ -37,6 +37,7 @@ type Plan = {
   minAmount: number;
   maxAmount: number;
   earlyWithdrawalPenalty: string;
+  lockPeriodDays: number;
   isActive: boolean;
 };
 
@@ -47,6 +48,7 @@ const defaultForm = {
   minAmount: "",
   maxAmount: "",
   earlyWithdrawalPenalty: "",
+  lockPeriodDays: "0",
 };
 
 function PlanForm({ plan, onClose }: { plan?: Plan; onClose: () => void }) {
@@ -59,6 +61,7 @@ function PlanForm({ plan, onClose }: { plan?: Plan; onClose: () => void }) {
     minAmount: String(plan.minAmount),
     maxAmount: String(plan.maxAmount),
     earlyWithdrawalPenalty: plan.earlyWithdrawalPenalty,
+    lockPeriodDays: String(plan.lockPeriodDays ?? 0),
   } : defaultForm);
 
   const save = useMutation({
@@ -70,6 +73,7 @@ function PlanForm({ plan, onClose }: { plan?: Plan; onClose: () => void }) {
         minAmount: Number(form.minAmount),
         maxAmount: Number(form.maxAmount) || 0,
         earlyWithdrawalPenalty: Number(form.earlyWithdrawalPenalty),
+        lockPeriodDays: Number(form.lockPeriodDays) || 0,
       };
       const url = plan ? `/api/staking-plans/${plan.id}` : "/api/staking-plans";
       const method = plan ? "PATCH" : "POST";
@@ -120,10 +124,16 @@ function PlanForm({ plan, onClose }: { plan?: Plan; onClose: () => void }) {
           <Input value={form.maxAmount} onChange={f("maxAmount")} type="number" min="0" placeholder="0 for no limit"
             className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500" />
         </div>
-        <div className="col-span-2">
+        <div>
           <Label className="text-gray-300">Early Withdrawal Penalty %</Label>
           <Input value={form.earlyWithdrawalPenalty} onChange={f("earlyWithdrawalPenalty")} type="number" min="0" max="100" placeholder="e.g. 10"
             className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500" />
+        </div>
+        <div>
+          <Label className="text-gray-300">Principal Lock Period <span className="text-gray-500">(days)</span></Label>
+          <Input value={form.lockPeriodDays} onChange={f("lockPeriodDays")} type="number" min="0" placeholder="0 = no lock"
+            className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500" />
+          <p className="text-[10px] text-gray-500 mt-1">Days before principal can be withdrawn. 0 = no lock.</p>
         </div>
       </div>
 
@@ -257,6 +267,12 @@ export default function AdminPlans() {
                       <Shield className="w-3 h-3 text-orange-400" />
                       <span><strong className="text-orange-400">{plan.earlyWithdrawalPenalty}%</strong> penalty</span>
                     </div>
+                    {(plan.lockPeriodDays ?? 0) > 0 && (
+                      <div className="flex items-center gap-1.5 text-gray-400">
+                        <Award className="w-3 h-3 text-red-400" />
+                        <span>Locked <strong className="text-red-400">{plan.lockPeriodDays}d</strong></span>
+                      </div>
+                    )}
                   </div>
                   {plan.maxAmount > 0 && (
                     <p className="text-xs text-gray-500 mt-1">Max: {formatKES(plan.maxAmount)}</p>

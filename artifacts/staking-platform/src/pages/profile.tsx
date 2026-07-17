@@ -7,15 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   User, Mail, Phone, Shield, Save, KeyRound, Eye, EyeOff,
   CheckCircle, AlertCircle, TrendingUp, Wallet, Calendar, Copy,
-  Camera, Upload, FileCheck, Clock, XCircle, Info, LogOut,
+  Camera, Upload, FileCheck, Clock, XCircle, Info, LogOut, Sun, Moon,
+  Building2, Link2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getToken } from "@/lib/auth";
 import { useAppAuth } from "@/lib/auth-context";
 import { useLocation } from "wouter";
+import { useTheme } from "@/lib/theme";
 
 function authedFetch(url: string, opts: RequestInit = {}) {
   const token = getToken();
@@ -207,8 +210,9 @@ export default function ProfilePage() {
   const { toast } = useToast();
   const { user, logout } = useAppAuth();
   const [, navigate] = useLocation();
+  const { theme, toggleTheme } = useTheme();
 
-  const [profileForm, setProfileForm] = useState({ fullName: "", mpesaNumber: "" });
+  const [profileForm, setProfileForm] = useState({ fullName: "", mpesaNumber: "", bankName: "", bankAccountNumber: "" });
   const [profileSaving, setProfileSaving] = useState(false);
 
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -221,6 +225,8 @@ export default function ProfilePage() {
       setProfileForm({
         fullName: me.fullName ?? "",
         mpesaNumber: me.mpesaNumber ?? "",
+        bankName: (me as any).bankName ?? "",
+        bankAccountNumber: (me as any).bankAccountNumber ?? "",
       });
     }
   }, [me]);
@@ -230,7 +236,12 @@ export default function ProfilePage() {
     try {
       const res = await authedFetch("/api/users/me", {
         method: "PATCH",
-        body: JSON.stringify(profileForm),
+        body: JSON.stringify({
+          fullName: profileForm.fullName || undefined,
+          mpesaNumber: profileForm.mpesaNumber || undefined,
+          bankName: profileForm.bankName || null,
+          bankAccountNumber: profileForm.bankAccountNumber || null,
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
       toast({ title: "Profile updated!" });
@@ -373,7 +384,36 @@ export default function ProfilePage() {
                   className="pl-9 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500"
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">Used for deposits and withdrawals</p>
+              <p className="text-xs text-gray-500 mt-1">Used for M-Pesa deposits and withdrawals</p>
+            </div>
+            <div className="border-t border-green-900/20 pt-4">
+              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-3">Bank Account (for withdrawals)</p>
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-gray-300 text-xs">Bank Name</Label>
+                  <div className="relative mt-1">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <Input
+                      value={profileForm.bankName}
+                      onChange={(e) => setProfileForm(p => ({ ...p, bankName: e.target.value }))}
+                      placeholder="e.g. KCB, Equity, Co-operative"
+                      className="pl-9 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-gray-300 text-xs">Bank Account Number</Label>
+                  <div className="relative mt-1">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <Input
+                      value={profileForm.bankAccountNumber}
+                      onChange={(e) => setProfileForm(p => ({ ...p, bankAccountNumber: e.target.value }))}
+                      placeholder="e.g. 1234567890"
+                      className="pl-9 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
             <Button
               className="bg-green-600 hover:bg-green-500 gap-2 w-full sm:w-auto"
@@ -386,7 +426,7 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* Referral Code */}
+        {/* Referral Code & Link */}
         {me?.referralCode && (
           <Card className="bg-[#0d1a10] border-green-900/30">
             <CardHeader className="pb-3">
@@ -394,48 +434,66 @@ export default function ProfilePage() {
                 <div className="w-7 h-7 rounded-lg bg-purple-900/30 flex items-center justify-center">
                   <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
                 </div>
-                Referral Code
+                Referral Code &amp; Link
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               <div className="flex items-center gap-3">
                 <div className="flex-1 bg-[#0a0f0d] border border-green-900/30 rounded-xl px-4 py-2.5 font-mono text-lg font-bold text-green-400 tracking-widest">
                   {me.referralCode}
                 </div>
                 <Button variant="outline" className="border-green-700/50 text-green-300 hover:bg-green-900/30 gap-2 shrink-0" onClick={copyReferralCode}>
-                  <Copy className="w-4 h-4" /> Copy
+                  <Copy className="w-4 h-4" /> Copy Code
                 </Button>
               </div>
-              <p className="text-xs text-gray-500 mt-2">Share this code or your referral link to earn rewards</p>
+              <div>
+                <Label className="text-gray-400 text-xs mb-1.5 block">Your Referral Link</Label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-[#0a0f0d] border border-green-900/20 rounded-xl px-3 py-2 text-xs text-green-400/80 font-mono break-all flex items-center gap-2">
+                    <Link2 className="w-3.5 h-3.5 shrink-0 text-gray-500" />
+                    <span className="truncate">{`${window.location.origin}/register?ref=${me.referralCode}`}</span>
+                  </div>
+                  <Button variant="outline" size="sm" className="border-green-700/50 text-green-300 hover:bg-green-900/30 gap-1.5 shrink-0 h-9"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(`${window.location.origin}/register?ref=${me.referralCode}`).catch(() => {});
+                      toast({ title: "Referral link copied!" });
+                    }}>
+                    <Copy className="w-3.5 h-3.5" /> Copy Link
+                  </Button>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">Share your link or code to earn referral rewards when friends join and stake.</p>
             </CardContent>
           </Card>
         )}
 
-        {/* KYC Verification */}
-        <KycSection />
-
-        {/* Sign Out */}
-        <Card className="bg-[#0d1a10] border-red-900/20">
+        {/* Appearance */}
+        <Card className="bg-[#0d1a10] border-green-900/30">
           <CardHeader className="pb-3">
             <CardTitle className="text-base text-white flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-red-900/30 flex items-center justify-center">
-                <LogOut className="w-3.5 h-3.5 text-red-400" />
+              <div className="w-7 h-7 rounded-lg bg-indigo-900/30 flex items-center justify-center">
+                {theme === "dark" ? <Moon className="w-3.5 h-3.5 text-indigo-400" /> : <Sun className="w-3.5 h-3.5 text-yellow-400" />}
               </div>
-              Sign Out
+              Appearance
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-gray-500 mb-4">You will be returned to the login screen. Your session data will be cleared.</p>
-            <Button
-              variant="outline"
-              className="border-red-900/40 text-red-400 hover:bg-red-900/15 hover:text-red-300 gap-2"
-              onClick={() => { logout(); queryClient.clear(); navigate("/login"); }}
-            >
-              <LogOut className="w-4 h-4" />
-              Sign Out of StakeKE
-            </Button>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-white font-medium">{theme === "dark" ? "Dark Mode" : "Light Mode"}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Switch between dark and light theme</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Moon className="w-4 h-4 text-indigo-400" />
+                <Switch checked={theme === "light"} onCheckedChange={toggleTheme} />
+                <Sun className="w-4 h-4 text-yellow-400" />
+              </div>
+            </div>
           </CardContent>
         </Card>
+
+        {/* KYC Verification */}
+        <KycSection />
 
         {/* Change Password */}
         <Card className="bg-[#0d1a10] border-green-900/30">
@@ -510,6 +568,29 @@ export default function ProfilePage() {
             >
               <Shield className="w-4 h-4" />
               {pwSaving ? "Changing..." : "Change Password"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Sign Out — bottom */}
+        <Card className="bg-[#0d1a10] border-red-900/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base text-white flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-red-900/30 flex items-center justify-center">
+                <LogOut className="w-3.5 h-3.5 text-red-400" />
+              </div>
+              Sign Out
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-gray-500 mb-4">You will be returned to the login screen. Your session data will be cleared.</p>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto border-red-900/40 text-red-400 hover:bg-red-900/15 hover:text-red-300 gap-2"
+              onClick={() => { logout(); queryClient.clear(); navigate("/login"); }}
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out of StakeKE
             </Button>
           </CardContent>
         </Card>

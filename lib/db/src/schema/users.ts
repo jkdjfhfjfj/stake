@@ -24,6 +24,8 @@ export const usersTable = pgTable("users", {
   kycStatus: kycStatusEnum("kyc_status").notNull().default("NONE"),
   kycDocumentUrl: text("kyc_document_url"),
   kycRequestedAt: timestamp("kyc_requested_at", { withTimezone: true }),
+  bankName: text("bank_name"),
+  bankAccountNumber: text("bank_account_number"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

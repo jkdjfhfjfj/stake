@@ -1,14 +1,16 @@
 import { Link, useLocation } from "wouter";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   LayoutDashboard, TrendingUp, ArrowLeftRight, Users,
   Bell, TrendingUpIcon, Settings, Shield, Zap, ChevronRight, MessageCircle,
+  Bot, X, Send, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useListNotifications, useGetMe } from "@workspace/api-client-react";
 import { useAppAuth } from "@/lib/auth-context";
 import { queryClient } from "@/lib/queryClient";
 import { useLocation as useWouterLocation } from "wouter";
+import { getToken } from "@/lib/auth";
 
 const navItems = [
   { href: "/dashboard",     icon: LayoutDashboard, label: "Dashboard" },
@@ -26,6 +28,145 @@ const bottomTabs = [
   { href: "/referrals",    icon: Users,           label: "Refer" },
   { href: "/profile",      icon: Settings,        label: "Profile" },
 ];
+
+type ChatMsg = { role: "user" | "assistant"; content: string };
+
+function QrokAIWidget() {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  // Check if AI is enabled (API key configured)
+  useEffect(() => {
+    fetch("/api/settings/public")
+      .then(r => r.json())
+      .then(d => setEnabled(Boolean(d.qrokEnabled)))
+      .catch(() => setEnabled(false));
+  }, []);
+
+  useEffect(() => {
+    if (open && endRef.current) endRef.current.scrollIntoView({ behavior: "smooth" });
+  }, [messages, open]);
+
+  const sendMessage = async () => {
+    const text = input.trim();
+    if (!text || loading) return;
+    const newMsgs: ChatMsg[] = [...messages, { role: "user", content: text }];
+    setMessages(newMsgs);
+    setInput("");
+    setLoading(true);
+    try {
+      const token = getToken();
+      const res = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ messages: newMsgs }),
+      });
+      const data = await res.json();
+      setMessages(m => [...m, { role: "assistant", content: data.reply ?? data.error ?? "Sorry, something went wrong." }]);
+    } catch {
+      setMessages(m => [...m, { role: "assistant", content: "Network error. Please try again." }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (enabled === false) return null;
+
+  return (
+    <>
+      {/* Floating button */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="fixed bottom-20 md:bottom-6 right-20 md:right-20 z-50 w-12 h-12 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full flex items-center justify-center shadow-lg hover:opacity-90 active:opacity-70"
+        title="Chat with Qrok AI"
+        aria-label="Qrok AI Assistant"
+      >
+        {open ? <X className="w-5 h-5 text-white" /> : <Bot className="w-6 h-6 text-white" />}
+      </button>
+
+      {/* Chat window */}
+      {open && (
+        <div className="fixed bottom-36 md:bottom-24 right-4 md:right-16 z-50 w-[min(340px,calc(100vw-2rem))] bg-[#0d1a10] border border-green-900/40 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          style={{ height: 420 }}>
+          {/* Header */}
+          <div className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-indigo-900/60 to-purple-900/50 border-b border-green-900/30">
+            <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center shrink-0">
+              <Bot className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-white">Qrok AI</p>
+              <p className="text-[10px] text-gray-400">StakeKE Assistant · Always on</p>
+            </div>
+            <button onClick={() => setOpen(false)} className="text-gray-500 hover:text-white">
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            {messages.length === 0 && (
+              <div className="text-center pt-4">
+                <Bot className="w-8 h-8 text-indigo-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-300 font-medium">Hi! I'm Qrok AI 👋</p>
+                <p className="text-xs text-gray-500 mt-1">Ask me anything about StakeKE — deposits, staking plans, withdrawals, and more.</p>
+                <div className="mt-3 space-y-1.5">
+                  {["How do I deposit via M-Pesa?", "What are the staking plans?", "How long does withdrawal take?"].map(q => (
+                    <button key={q} onClick={() => { setInput(q); }}
+                      className="w-full text-left text-xs bg-indigo-900/20 border border-indigo-800/30 text-indigo-300 rounded-lg px-3 py-2 hover:bg-indigo-900/30">
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {messages.map((m, i) => (
+              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap ${
+                  m.role === "user"
+                    ? "bg-green-700/60 text-white rounded-br-none"
+                    : "bg-[#1a2b1a] text-gray-200 rounded-bl-none border border-green-900/20"
+                }`}>
+                  {m.content}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="bg-[#1a2b1a] border border-green-900/20 rounded-2xl rounded-bl-none px-3 py-2">
+                  <div className="flex gap-1 items-center h-4">
+                    {[0,1,2].map(i => (
+                      <div key={i} className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={endRef} />
+          </div>
+
+          {/* Input */}
+          <div className="p-2 border-t border-green-900/30 flex gap-2">
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder="Ask anything…"
+              className="flex-1 bg-[#0a0f0d] border border-green-900/40 rounded-xl px-3 py-2 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-indigo-500 min-w-0"
+            />
+            <button onClick={sendMessage} disabled={!input.trim() || loading}
+              className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0 disabled:opacity-40 hover:bg-indigo-500">
+              <Send className="w-3.5 h-3.5 text-white" />
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 function WhatsAppWidget() {
   const [phone, setPhone] = useState("");
@@ -215,6 +356,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </nav>
 
       {/* ══ WHATSAPP FLOAT WIDGET ══ */}
+      <QrokAIWidget />
       <WhatsAppWidget />
 
       {/* ══ MAIN CONTENT ══ */}

@@ -301,6 +301,49 @@
   }
 }
 
+/* ── Light Mode Overrides ─────────────────────────────────────────────────── */
+:root.light-mode {
+  --bg-base: #f0faf2;
+  --bg-card: #ffffff;
+  --bg-input: #f7fbf8;
+  --border-subtle: #c8e6cc;
+  --text-primary: #0d2010;
+  --text-secondary: #3a5c3f;
+  --text-muted: #6b8f72;
+}
+
+.light-mode body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+}
+
+.light-mode .bg-\[\#070d09\],
+.light-mode .bg-\[\#0a0f0d\],
+.light-mode .bg-\[\#0a1410\],
+.light-mode .bg-\[\#0d1a10\],
+.light-mode .bg-\[\#080e09\] {
+  background-color: var(--bg-card) !important;
+}
+
+.light-mode .text-white {
+  color: var(--text-primary) !important;
+}
+
+.light-mode .text-gray-400,
+.light-mode .text-gray-500 {
+  color: var(--text-secondary) !important;
+}
+
+.light-mode .text-gray-600 {
+  color: var(--text-muted) !important;
+}
+
+.light-mode .border-green-900\/20,
+.light-mode .border-green-900\/30,
+.light-mode .border-green-900\/40 {
+  border-color: var(--border-subtle) !important;
+}
+
 /* Android Chrome on low-end/small screens can corrupt composited layers when
    many rounded controls create high-z hover/active pseudo-elements while fixed
    mobile bars are present. Touch devices do not need hover elevation, so keep

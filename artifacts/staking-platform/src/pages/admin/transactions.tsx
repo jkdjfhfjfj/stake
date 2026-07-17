@@ -69,14 +69,22 @@ function EditTxDialog({ tx, onDone }: { tx: TxRow; onDone: () => void }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState(tx.status);
   const [description, setDescription] = useState(tx.description ?? "");
+  const [createdAt, setCreatedAt] = useState(
+    tx.createdAt ? new Date(tx.createdAt).toISOString().slice(0, 16) : ""
+  );
   const { toast } = useToast();
   const qc = useQueryClient();
 
   const update = useMutation({
     mutationFn: async () => {
+      const body: any = {};
+      if (status !== tx.status) body.status = status;
+      if (description !== (tx.description ?? "")) body.description = description || null;
+      const origDt = tx.createdAt ? new Date(tx.createdAt).toISOString().slice(0, 16) : "";
+      if (createdAt !== origDt && createdAt) body.createdAt = new Date(createdAt).toISOString();
       const res = await authedFetch(`/api/admin/transactions/${tx.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ status, description: description || undefined }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
       return res.json();
@@ -92,7 +100,9 @@ function EditTxDialog({ tx, onDone }: { tx: TxRow; onDone: () => void }) {
 
   const statusChanged = status !== tx.status;
   const descChanged = description !== (tx.description ?? "");
-  const hasChanges = statusChanged || descChanged;
+  const origDt = tx.createdAt ? new Date(tx.createdAt).toISOString().slice(0, 16) : "";
+  const dateChanged = createdAt !== origDt;
+  const hasChanges = statusChanged || descChanged || dateChanged;
 
   return (
     <>
@@ -127,6 +137,10 @@ function EditTxDialog({ tx, onDone }: { tx: TxRow; onDone: () => void }) {
                   {formatKES(tx.amount)}
                 </span>
               </div>
+              <div className="flex justify-between">
+                <span>Reference</span>
+                <span className="text-gray-400 font-mono text-[10px] truncate max-w-[130px]">{tx.externalReference ?? "—"}</span>
+              </div>
             </div>
 
             <div>
@@ -150,6 +164,19 @@ function EditTxDialog({ tx, onDone }: { tx: TxRow; onDone: () => void }) {
                 <p className="text-xs text-yellow-400 mt-1 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> Funds will be returned to user balance
                 </p>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-gray-300 text-xs">Date &amp; Time</Label>
+              <Input
+                type="datetime-local"
+                value={createdAt}
+                onChange={(e) => setCreatedAt(e.target.value)}
+                className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-9 text-xs"
+              />
+              {dateChanged && (
+                <p className="text-xs text-yellow-400/70 mt-1">Transaction date will be updated</p>
               )}
             </div>
 

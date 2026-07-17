@@ -136,6 +136,17 @@ router.post("/stakes/:id/break", requireAuth, async (req, res): Promise<void> =>
     return;
   }
 
+  // Enforce lock period — principal cannot be withdrawn before lockPeriodDays
+  const lockPeriodDays = Number((stake.plan as any).lockPeriodDays ?? 0);
+  if (lockPeriodDays > 0) {
+    const lockUntil = new Date(stake.startDate.getTime() + lockPeriodDays * 24 * 60 * 60 * 1000);
+    if (new Date() < lockUntil) {
+      const daysLeft = Math.ceil((lockUntil.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+      res.status(400).json({ error: `This plan has a ${lockPeriodDays}-day lock period. You can withdraw in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}.` });
+      return;
+    }
+  }
+
   const penalty = Number(stake.plan.earlyWithdrawalPenalty) / 100;
   const principal = Number(stake.principalAmount);
   const returned = principal * (1 - penalty);

@@ -9,6 +9,7 @@ import webhooksRouter from "./webhooks";
 import referralsRouter from "./referrals";
 import notificationsRouter from "./notifications";
 import adminRouter from "./admin";
+import aiRouter from "./ai";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(webhooksRouter);
 router.use(referralsRouter);
 router.use(notificationsRouter);
 router.use(adminRouter);
+router.use(aiRouter);
 
 export default router;

@@ -5,7 +5,7 @@ import {
   auditLogsTable, platformSettingsTable, notificationsTable, referralsTable,
 } from "@workspace/db";
 import { requireAdmin } from "../lib/auth";
-import { disburseB2C } from "../lib/payhero";
+// disburseB2C removed — withdrawals are manually processed
 import { createNotification } from "../lib/notifications";
 import { nanoid } from "nanoid";
 import {
@@ -333,50 +333,37 @@ router.post("/admin/withdrawals/:id/disburse", requireAdmin, async (req, res): P
     return;
   }
 
-  const domains = (process.env.REPLIT_DOMAINS ?? "").split(",")[0];
-  const callbackUrl = `https://${domains}/api/webhooks/payhero`;
+  // Mark as COMPLETED — withdrawals are manually processed via M-Pesa, no B2C API call
+  const [updated] = await db.update(transactionsTable)
+    .set({ status: "COMPLETED" })
+    .where(eq(transactionsTable.id, tx.id))
+    .returning();
 
-  try {
-    await disburseB2C({
-      amount: Number(tx.amount),
-      phoneNumber: tx.phoneNumber ?? "",
-      reference: tx.externalReference ?? `WIT-${nanoid(12).toUpperCase()}`,
-      callbackUrl,
-    });
+  await createNotification({
+    userId: tx.userId,
+    type: "WITHDRAWAL_APPROVED",
+    title: "Withdrawal Disbursed",
+    message: `Your withdrawal of KES ${Number(tx.amount).toLocaleString("en-KE", { minimumFractionDigits: 2 })} has been sent to ${tx.phoneNumber}. Please allow a few minutes for the M-Pesa notification.`,
+  });
 
-    const [updated] = await db.update(transactionsTable)
-      .set({ status: "COMPLETED" })
-      .where(eq(transactionsTable.id, tx.id))
-      .returning();
+  await db.insert(auditLogsTable).values({
+    adminId: req.userId!,
+    action: `Manually disbursed withdrawal #${tx.id} of KES ${tx.amount} to ${tx.phoneNumber}`,
+    targetUserId: tx.userId,
+  });
 
-    await createNotification({
-      userId: tx.userId,
-      type: "WITHDRAWAL_APPROVED",
-      title: "Withdrawal Approved",
-      message: `Your withdrawal of KES ${Number(tx.amount).toLocaleString("en-KE", { minimumFractionDigits: 2 })} has been processed.`,
-    });
-
-    await db.insert(auditLogsTable).values({
-      adminId: req.userId!,
-      action: `Disbursed withdrawal #${tx.id} of KES ${tx.amount} to ${tx.phoneNumber}`,
-      targetUserId: tx.userId,
-    });
-
-    const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, tx.userId) });
-    res.json(DisburseWithdrawalResponse.parse({
-      id: updated.id,
-      userId: updated.userId,
-      userEmail: user?.email ?? "",
-      userFullName: user?.fullName ?? null,
-      amount: Number(updated.amount),
-      status: updated.status,
-      phoneNumber: updated.phoneNumber ?? "",
-      payheroRef: updated.payheroRef ?? null,
-      createdAt: updated.createdAt.toISOString(),
-    }));
-  } catch (err: any) {
-    res.status(502).json({ error: err.message });
-  }
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, tx.userId) });
+  res.json(DisburseWithdrawalResponse.parse({
+    id: updated.id,
+    userId: updated.userId,
+    userEmail: user?.email ?? "",
+    userFullName: user?.fullName ?? null,
+    amount: Number(updated.amount),
+    status: updated.status,
+    phoneNumber: updated.phoneNumber ?? "",
+    payheroRef: updated.payheroRef ?? null,
+    createdAt: updated.createdAt.toISOString(),
+  }));
 });
 
 router.post("/admin/withdrawals/:id/reject", requireAdmin, async (req, res): Promise<void> => {
@@ -761,14 +748,71 @@ router.get("/settings/public", async (_req, res): Promise<void> => {
     whatsappNumber: map["whatsapp_number"] ?? "",
     cloudinaryCloudName: map["cloudinary_cloud_name"] ?? "",
     cloudinaryUploadPreset: map["cloudinary_upload_preset"] ?? "",
+    qrokEnabled: Boolean(process.env.QROK_API_KEY),
   });
+});
+
+// ── Delete User ────────────────────────────────────────────────────────────────
+router.delete("/admin/users/:id", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid user id" }); return; }
+
+  const target = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
+  if (!target) { res.status(404).json({ error: "User not found" }); return; }
+  if (target.role === "ADMIN") { res.status(403).json({ error: "Cannot delete admin users" }); return; }
+  if (target.id === req.userId!) { res.status(403).json({ error: "Cannot delete your own account" }); return; }
+
+  // Delete all related records first
+  await db.delete(transactionsTable).where(eq(transactionsTable.userId, id));
+  await db.delete(notificationsTable).where(eq(notificationsTable.userId, id));
+  await db.delete(referralsTable).where(eq(referralsTable.referrerId, id));
+  await db.delete(referralsTable).where(eq(referralsTable.refereeId, id));
+  await db.delete(stakesTable).where(eq(stakesTable.userId, id));
+  await db.delete(usersTable).where(eq(usersTable.id, id));
+
+  await db.insert(auditLogsTable).values({
+    adminId: req.userId!,
+    action: `Deleted user #${id} (${target.email})`,
+    targetUserId: null,
+    note: `Deleted by admin. Email: ${target.email}`,
+  });
+
+  res.json({ ok: true });
+});
+
+// ── User Transactions (admin view) ──────────────────────────────────────────
+router.get("/admin/users/:id/transactions", requireAdmin, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+
+  const txs = await db.query.transactionsTable.findMany({
+    where: eq(transactionsTable.userId, userId),
+    orderBy: (t, { desc }) => [desc(t.createdAt)],
+    limit: 500,
+  });
+
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
+
+  res.json(txs.map((t) => ({
+    id: t.id,
+    userId: t.userId,
+    userEmail: user?.email ?? "",
+    userFullName: user?.fullName ?? null,
+    type: t.type,
+    amount: Number(t.amount),
+    status: t.status,
+    description: t.description ?? null,
+    phoneNumber: t.phoneNumber ?? null,
+    externalReference: t.externalReference ?? null,
+    createdAt: t.createdAt.toISOString(),
+  })));
 });
 
 // ── Transaction Update ────────────────────────────────────────────────────────
 router.patch("/admin/transactions/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  const { status, description } = req.body as { status?: string; description?: string };
+  const { status, description, createdAt } = req.body as { status?: string; description?: string; createdAt?: string };
   const allowed = ["PENDING", "COMPLETED", "FAILED", "REJECTED"];
   if (status && !allowed.includes(status)) {
     res.status(400).json({ error: "Invalid status" }); return;
@@ -779,6 +823,10 @@ router.patch("/admin/transactions/:id", requireAdmin, async (req, res): Promise<
   const updates: any = {};
   if (status) updates.status = status;
   if (description !== undefined) updates.description = description;
+  if (createdAt) {
+    const d = new Date(createdAt);
+    if (!isNaN(d.getTime())) updates.createdAt = d;
+  }
 
   const [updated] = await db.update(transactionsTable).set(updates).where(eq(transactionsTable.id, id)).returning();
 

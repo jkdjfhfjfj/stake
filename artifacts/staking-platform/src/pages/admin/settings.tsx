@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Settings, Eye, EyeOff, Save, Wifi, WifiOff, Loader2, PlayCircle,
-  CreditCard, GitBranch, Info, MessageCircle, Camera, CheckCircle,
+  CreditCard, GitBranch, Info, MessageCircle, Camera, CheckCircle, Bot,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getToken } from "@/lib/auth";
@@ -315,6 +315,65 @@ export default function AdminSettings() {
         <Save className="w-4 h-4" />
         {extSaving ? "Saving…" : "Save Communication & KYC Settings"}
       </Button>
+
+      {/* Qrok AI Assistant */}
+      <Card className="bg-[#0d1a10] border-indigo-900/30">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base text-white flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-indigo-900/30 flex items-center justify-center">
+              <Bot className="w-3.5 h-3.5 text-indigo-400" />
+            </div>
+            Qrok AI Assistant
+            <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full font-medium ${
+              Boolean((window as any).__QROK_ENABLED__)
+                ? "bg-green-900/30 text-green-400"
+                : "bg-gray-800 text-gray-500"
+            }`}>
+              {Boolean(process.env.QROK_API_KEY) ? "Active" : "Not Configured"}
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="bg-indigo-900/10 border border-indigo-900/25 rounded-xl p-3 text-xs text-indigo-300/80 flex gap-2">
+            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <span>
+              The Qrok AI chat widget appears as a floating button for all logged-in users.
+              It uses a Groq-compatible API to answer questions about StakeKE.
+            </span>
+          </div>
+          <div className="bg-[#0a1410] rounded-xl p-3 border border-green-900/20 text-xs text-gray-400 space-y-2">
+            <p className="text-gray-300 font-medium">Setup instructions:</p>
+            <p>1. Get an API key from <strong className="text-indigo-300">console.groq.com</strong> (free tier available)</p>
+            <p>2. Add <code className="text-green-400 bg-green-900/20 px-1 rounded">QROK_API_KEY</code> to your Replit environment secrets</p>
+            <p>3. Optionally set <code className="text-green-400 bg-green-900/20 px-1 rounded">QROK_MODEL</code> (default: <code className="text-gray-400">llama3-8b-8192</code>)</p>
+            <p>4. Restart the API server — the widget will appear automatically for users</p>
+          </div>
+          <QrokStatusBadge />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function QrokStatusBadge() {
+  const [status, setStatus] = useState<"loading" | "enabled" | "disabled">("loading");
+  useEffect(() => {
+    fetch("/api/settings/public")
+      .then(r => r.json())
+      .then(d => setStatus(d.qrokEnabled ? "enabled" : "disabled"))
+      .catch(() => setStatus("disabled"));
+  }, []);
+  if (status === "loading") return null;
+  return (
+    <div className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs border ${
+      status === "enabled"
+        ? "bg-green-900/20 border-green-800/30 text-green-400"
+        : "bg-gray-900/30 border-gray-800/30 text-gray-500"
+    }`}>
+      <div className={`w-2 h-2 rounded-full ${status === "enabled" ? "bg-green-400 animate-pulse" : "bg-gray-600"}`} />
+      {status === "enabled"
+        ? "Qrok AI is active — the chat widget is visible to users"
+        : "Qrok AI is not configured — add QROK_API_KEY to enable"}
     </div>
   );
 }

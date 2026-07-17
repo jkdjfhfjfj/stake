@@ -23,13 +23,19 @@ router.get("/users/me", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.patch("/users/me", requireAuth, async (req, res): Promise<void> => {
-  const parsed = UpdateMeBody.safeParse(req.body);
+  // Allow extra fields beyond the generated schema (bankName, bankAccountNumber)
+  const { bankName, bankAccountNumber, ...rest } = req.body as any;
+  const parsed = UpdateMeBody.safeParse(rest);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const updateData: any = { ...parsed.data };
+  if (bankName !== undefined) updateData.bankName = bankName || null;
+  if (bankAccountNumber !== undefined) updateData.bankAccountNumber = bankAccountNumber || null;
+
   const [updated] = await db.update(usersTable)
-    .set(parsed.data)
+    .set(updateData)
     .where(eq(usersTable.id, req.userId!))
     .returning();
   res.json(GetMeResponse.parse({

@@ -10,6 +10,7 @@ export const stakingPlansTable = pgTable("staking_plans", {
   minAmount: numeric("min_amount", { precision: 15, scale: 2 }).notNull(),
   maxAmount: numeric("max_amount", { precision: 15, scale: 2 }).notNull(),
   earlyWithdrawalPenalty: numeric("early_withdrawal_penalty", { precision: 8, scale: 4 }).notNull().default("10"),
+  lockPeriodDays: integer("lock_period_days").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

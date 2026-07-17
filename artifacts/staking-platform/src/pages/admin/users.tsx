@@ -8,11 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import {
   Users, Lock, Unlock, Edit, Search, Shield, TrendingUp, Wallet, Phone, Mail, Plus, Minus,
-  TrendingDown, Clock, CheckCircle, XCircle, FileCheck, FilePlus, AlertTriangle, ChevronDown, ChevronUp
+  TrendingDown, Clock, CheckCircle, XCircle, FileCheck, FilePlus, AlertTriangle, ChevronDown, ChevronUp,
+  Trash2, ArrowDownCircle, ArrowUpCircle, RefreshCcw, Receipt,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getToken } from "@/lib/auth";
@@ -38,6 +40,195 @@ function timeLeft(endDate: string) {
   if (d > 0) return `${d}d ${h}h left`;
   if (h > 0) return `${h}h ${m}m left`;
   return `${m}m left`;
+}
+
+const TX_TYPE_COLORS: Record<string, string> = {
+  DEPOSIT: "bg-green-900/30 text-green-400",
+  WITHDRAWAL: "bg-red-900/30 text-red-400",
+  INTEREST: "bg-blue-900/30 text-blue-400",
+  MANUAL_CREDIT: "bg-purple-900/30 text-purple-400",
+  MANUAL_DEBIT: "bg-orange-900/30 text-orange-400",
+  STAKE: "bg-yellow-900/30 text-yellow-400",
+  UNSTAKE: "bg-pink-900/30 text-pink-400",
+  REFERRAL_REWARD: "bg-teal-900/30 text-teal-400",
+};
+const TX_STATUS_COLORS: Record<string, string> = {
+  COMPLETED: "bg-green-900/30 text-green-400",
+  PENDING: "bg-yellow-900/30 text-yellow-400",
+  FAILED: "bg-red-900/30 text-red-400",
+  REJECTED: "bg-gray-700/30 text-gray-400",
+};
+const TX_CREDIT = new Set(["DEPOSIT", "INTEREST", "MANUAL_CREDIT", "REFERRAL_REWARD", "UNSTAKE"]);
+
+function UserTransactionsDialog({ user }: { user: any }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const { data: txs, isLoading } = useQuery<any[]>({
+    queryKey: [`/api/admin/users/${user.id}/transactions`],
+    queryFn: async () => {
+      const token = getToken();
+      const res = await fetch(`/api/admin/users/${user.id}/transactions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: open,
+  });
+
+  const filtered = (txs ?? []).filter((t) => {
+    const q = search.toLowerCase();
+    return !q || t.type.toLowerCase().includes(q) || (t.description ?? "").toLowerCase().includes(q)
+      || (t.externalReference ?? "").toLowerCase().includes(q) || t.status.toLowerCase().includes(q);
+  });
+
+  const totalIn  = (txs ?? []).filter(t => TX_CREDIT.has(t.type) && t.status === "COMPLETED").reduce((s, t) => s + t.amount, 0);
+  const totalOut = (txs ?? []).filter(t => !TX_CREDIT.has(t.type) && t.status === "COMPLETED").reduce((s, t) => s + t.amount, 0);
+
+  return (
+    <>
+      <Button size="sm" variant="ghost"
+        className="text-green-400 hover:text-green-300 hover:bg-green-900/20 h-8 px-2 gap-1 text-xs"
+        onClick={() => setOpen(true)}>
+        <Receipt className="w-3.5 h-3.5" />
+        <span className="hidden sm:inline">Txns</span>
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="bg-[#0d1a10] border-green-900/40 text-white max-w-2xl max-h-[90vh] flex flex-col">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="text-sm flex items-center gap-2">
+              <Receipt className="w-4 h-4 text-green-400" />
+              Transactions — {user.fullName ?? user.email}
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Summary row */}
+          {txs && txs.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 shrink-0">
+              <div className="bg-[#0a1410] rounded-xl p-2.5 border border-green-900/20 text-center">
+                <p className="text-[10px] text-gray-500 mb-0.5">Total In</p>
+                <p className="text-sm font-bold text-green-400">KES {totalIn.toLocaleString("en-KE", { minimumFractionDigits: 2 })}</p>
+              </div>
+              <div className="bg-[#0a1410] rounded-xl p-2.5 border border-green-900/20 text-center">
+                <p className="text-[10px] text-gray-500 mb-0.5">Total Out</p>
+                <p className="text-sm font-bold text-red-400">KES {totalOut.toLocaleString("en-KE", { minimumFractionDigits: 2 })}</p>
+              </div>
+              <div className="bg-[#0a1410] rounded-xl p-2.5 border border-green-900/20 text-center">
+                <p className="text-[10px] text-gray-500 mb-0.5">Transactions</p>
+                <p className="text-sm font-bold text-white">{txs.length}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Search */}
+          <div className="relative shrink-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+            <Input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search by type, status, description…"
+              className="pl-8 bg-[#0a0f0d] border-green-900/40 text-white placeholder:text-gray-600 focus:border-green-500 h-8 text-xs" />
+          </div>
+
+          {/* Transaction list */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {isLoading ? (
+              <div className="flex justify-center py-10">
+                <div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-10 text-gray-500 text-sm">
+                {search ? "No matching transactions" : "No transactions found"}
+              </div>
+            ) : (
+              <div className="space-y-1.5 pr-1">
+                {filtered.map((t) => {
+                  const isCredit = TX_CREDIT.has(t.type);
+                  return (
+                    <div key={t.id} className="flex items-center gap-3 bg-[#0a1410] rounded-xl p-3 border border-green-900/10 hover:border-green-900/25">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isCredit ? "bg-green-900/30" : "bg-red-900/20"}`}>
+                        {isCredit
+                          ? <ArrowDownCircle className="w-4 h-4 text-green-400" />
+                          : <ArrowUpCircle className="w-4 h-4 text-red-400" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge className={`${TX_TYPE_COLORS[t.type] ?? "bg-gray-700/30 text-gray-400"} border-0 text-[10px] px-1.5`}>
+                            {t.type.replace(/_/g, " ")}
+                          </Badge>
+                          <Badge className={`${TX_STATUS_COLORS[t.status] ?? ""} border-0 text-[10px] px-1.5`}>{t.status}</Badge>
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-0.5">
+                          {new Date(t.createdAt).toLocaleString("en-KE")}
+                          {t.description && ` · ${t.description}`}
+                        </p>
+                        {t.externalReference && (
+                          <p className="text-[10px] text-gray-600 font-mono truncate max-w-[200px]">{t.externalReference}</p>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className={`text-sm font-bold ${isCredit ? "text-green-400" : "text-red-400"}`}>
+                          {isCredit ? "+" : "-"}KES {t.amount.toLocaleString("en-KE", { minimumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-[10px] text-gray-600">#{t.id}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function DeleteUserButton({ user, onDeleted }: { user: any; onDeleted: () => void }) {
+  const { toast } = useToast();
+  const del = useMutation({
+    mutationFn: async () => {
+      const token = getToken();
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "User deleted", variant: "success" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      onDeleted();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  if (user.role === "ADMIN") return null;
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button size="sm" variant="ghost" className="text-gray-500 hover:text-red-400 hover:bg-red-900/20 h-8 w-8 p-0"
+          title="Delete user">
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent className="bg-[#0d1a10] border-red-900/40 text-white">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete {user.fullName ?? user.email}?</AlertDialogTitle>
+          <AlertDialogDescription className="text-gray-400">
+            This will permanently delete the user and all their transactions, stakes, and data. This cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel className="bg-transparent border-green-900/40 text-gray-300">Cancel</AlertDialogCancel>
+          <AlertDialogAction className="bg-red-600 hover:bg-red-500"
+            onClick={() => del.mutate()} disabled={del.isPending}>
+            {del.isPending ? "Deleting…" : "Delete User"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 }
 
 function KycBadge({ status }: { status: string }) {
@@ -584,9 +775,11 @@ export default function AdminUsers() {
               <p className="text-xs text-gray-500">balance</p>
             </div>
             <div className="flex items-center gap-1 shrink-0">
+              <UserTransactionsDialog user={user} />
               <UserStakesDialog user={user} />
               <KycAdminControls user={user} onRefresh={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] })} />
               <EditUserDialog user={user} onRefresh={() => {}} />
+              <DeleteUserButton user={user} onDeleted={() => {}} />
             </div>
           </div>
         ))}

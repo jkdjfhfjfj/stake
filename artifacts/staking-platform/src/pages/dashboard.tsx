@@ -197,21 +197,44 @@ function DepositDialog({ phone }: { phone?: string | null }) {
         )}
 
         {/* ── Failed ── */}
-        {(pollState === "failed" || pollState === "timeout") && (
+        {pollState === "failed" && (
           <div className="py-6 flex flex-col items-center gap-3">
             <div className="w-16 h-16 rounded-full bg-[#1a0808] border-2 border-red-800/50 flex items-center justify-center">
               <span className="text-2xl">✕</span>
             </div>
-            <p className="text-white font-semibold">
-              {pollState === "timeout" ? "Confirmation timed out" : "Payment failed"}
-            </p>
+            <p className="text-white font-semibold">Payment failed</p>
             <p className="text-gray-400 text-sm text-center">
-              {pollState === "timeout"
-                ? "Your balance will update automatically if payment was successful."
-                : "The M-Pesa payment was cancelled or failed. Please try again."}
+              The M-Pesa payment was cancelled or failed. Please try again.
             </p>
-            <Button size="sm" onClick={() => setPollState("idle")}
-              className="bg-green-600 hover:bg-green-500">Try Again</Button>
+            <Button size="sm" onClick={() => setPollState("idle")} className="bg-green-600 hover:bg-green-500">Try Again</Button>
+          </div>
+        )}
+
+        {/* ── Timeout ── */}
+        {pollState === "timeout" && (
+          <div className="py-5 flex flex-col items-center gap-3">
+            <div className="w-16 h-16 rounded-full bg-[#1a1000] border-2 border-yellow-800/50 flex items-center justify-center">
+              <span className="text-2xl">⏱</span>
+            </div>
+            <p className="text-white font-semibold">Confirmation timed out</p>
+            <div className="bg-yellow-900/20 border border-yellow-700/40 rounded-xl p-3 w-full text-left space-y-2">
+              <p className="text-yellow-300 text-xs font-medium">M-Pesa may still be processing</p>
+              <p className="text-gray-400 text-xs">
+                If you entered your M-Pesa PIN and were <strong className="text-white">debited but your balance was not credited</strong>,
+                your payment may have been received on our end. Your balance will be updated once confirmed.
+              </p>
+              <p className="text-gray-400 text-xs">
+                Please wait a few minutes and refresh the app. If the issue persists, contact support with your M-Pesa message reference.
+              </p>
+            </div>
+            <div className="flex gap-2 w-full">
+              <Button size="sm" variant="outline" className="flex-1 border-yellow-700/40 text-yellow-300 hover:bg-yellow-900/20"
+                onClick={() => window.location.reload()}>
+                Refresh App
+              </Button>
+              <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-500"
+                onClick={() => setPollState("idle")}>Try Again</Button>
+            </div>
           </div>
         )}
 
