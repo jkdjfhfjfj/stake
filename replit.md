@@ -14,7 +14,7 @@ A full-stack Kenyan investment/staking platform where users deposit via M-Pesa, 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- Frontend: React + Vite, Tailwind CSS, shadcn/ui, Wouter routing, Clerk auth
+- Frontend: React + Vite, Tailwind CSS, shadcn/ui, Wouter routing, custom JWT auth
 - API: Express 5 (port 8080 → `/api`)
 - DB: PostgreSQL + Drizzle ORM
 - Validation: Zod (`zod/v4`), `drizzle-zod`
@@ -37,7 +37,7 @@ A full-stack Kenyan investment/staking platform where users deposit via M-Pesa, 
 ## Architecture decisions
 
 - PayHero credentials (username, password, channel_id) stored in `platform_settings` DB table, not env vars — admin manages via `/admin/settings`
-- Clerk auth with JIT user provisioning in the API (`requireAuth` upserts users on first request)
+- Custom JWT auth: bcryptjs password hashing, jsonwebtoken HS256 7d tokens stored in localStorage
 - All KES amounts stored as Postgres `numeric` type — converted with `Number()` in API responses
 - Referral system: 2-tier (5% tier-1, 2% tier-2) stored in `platform_settings`
 - Admin cron job runs hourly to mature stakes and process auto-invest/early-break

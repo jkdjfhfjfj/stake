@@ -1,7 +1,14 @@
 import { Link } from "wouter";
 import { TrendingUp, ArrowLeft, ArrowRight, Users, Share2, DollarSign, Copy } from "lucide-react";
+import { useSeo } from "@/hooks/use-seo";
 
 export default function EarnReferralRewards() {
+  useSeo({
+    title: "Earn More with Referrals: Kenya's 2-Tier Reward System | StakeKE",
+    description: "StakeKE's referral programme pays 5% on tier-1 and 2% on tier-2. Here's exactly how to maximise your passive income by referring friends in Kenya.",
+    type: "article",
+    datePublished: "2026-07-17T00:00:00Z",
+  });
   return (
     <div className="min-h-screen bg-[#060d08]">
       <div className="border-b border-green-900/20 bg-[#080f0a]">

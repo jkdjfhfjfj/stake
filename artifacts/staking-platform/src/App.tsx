@@ -79,6 +79,12 @@ function Router() {
       <Route path="/notifications" component={() => <ProtectedRoute component={NotificationsPage} />} />
       <Route path="/profile" component={() => <ProtectedRoute component={ProfilePage} />} />
       <Route path="/admin" component={() => <AdminRoute component={AdminPage} />} />
+      {/* /sign-up alias → /register (preserves ?ref= for referral links) */}
+      <Route path="/sign-up" component={() => {
+        const params = window.location.search;
+        window.location.replace(`/register${params}`);
+        return null;
+      }} />
       {/* Public blog / SEO articles */}
       <Route path="/blog" component={BlogIndex} />
       <Route path="/blog/how-to-invest-mpesa-kenya" component={HowToInvestMpesa} />

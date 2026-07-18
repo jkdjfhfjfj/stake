@@ -186,7 +186,7 @@ function TxEditRow({ tx, onSaved }: { tx: any; onSaved: () => void }) {
         </div>
         <button
           onClick={() => setEditing(true)}
-          className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-green-400 transition-opacity p-1 rounded-lg hover:bg-green-900/20"
+          className="text-gray-500 hover:text-green-400 transition-colors p-1 rounded-lg hover:bg-green-900/20"
           title="Edit transaction">
           <Pencil className="w-3.5 h-3.5" />
         </button>

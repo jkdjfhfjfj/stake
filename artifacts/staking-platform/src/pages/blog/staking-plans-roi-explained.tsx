@@ -1,7 +1,14 @@
 import { Link } from "wouter";
 import { TrendingUp, ArrowLeft, ArrowRight, Calculator, Clock, Shield, Zap } from "lucide-react";
+import { useSeo } from "@/hooks/use-seo";
 
 export default function StakingPlansRoiExplained() {
+  useSeo({
+    title: "Staking Plans & ROI Explained for Kenyan Investors | StakeKE",
+    description: "Understand how tiered staking plans work, how ROI is calculated in KES, and how to pick the right plan for your investment goals in Kenya.",
+    type: "article",
+    datePublished: "2026-07-17T00:00:00Z",
+  });
   return (
     <div className="min-h-screen bg-[#060d08]">
       <div className="border-b border-green-900/20 bg-[#080f0a]">

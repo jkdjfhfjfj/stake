@@ -1,25 +1,11 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background rounded square -->
-  <rect width="512" height="512" rx="112" fill="#0d2210"/>
-  <rect width="512" height="512" rx="112" fill="url(#grad)"/>
-
-  <!-- Chart bars (staking/investment metaphor) -->
-  <rect x="88" y="320" width="72" height="128" rx="12" fill="#22c55e" opacity="0.5"/>
-  <rect x="184" y="248" width="72" height="200" rx="12" fill="#22c55e" opacity="0.75"/>
-  <rect x="280" y="176" width="72" height="272" rx="12" fill="#22c55e"/>
-  <rect x="376" y="112" width="72" height="336" rx="12" fill="#4ade80"/>
-
-  <!-- Upward arrow overlay -->
-  <path d="M256 64 L368 176 L320 176 L320 304 L192 304 L192 176 L144 176 Z" fill="white" opacity="0.12"/>
-
-  <!-- "KE" text badge -->
-  <rect x="56" y="56" width="104" height="44" rx="10" fill="#16a34a"/>
-  <text x="108" y="87" font-family="'Inter', 'Arial', sans-serif" font-size="26" font-weight="800" fill="white" text-anchor="middle" letter-spacing="-0.5">KE</text>
-
-  <defs>
-    <linearGradient id="grad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#0a1f0d"/>
-      <stop offset="100%" stop-color="#0d2a13"/>
-    </linearGradient>
-  </defs>
+  <rect width="512" height="512" rx="112" fill="#0a1f0d"/>
+  <rect x="88" y="308" width="68" height="140" rx="10" fill="#16a34a" fill-opacity="0.45"/>
+  <rect x="180" y="236" width="68" height="212" rx="10" fill="#16a34a" fill-opacity="0.65"/>
+  <rect x="272" y="160" width="68" height="288" rx="10" fill="#16a34a" fill-opacity="0.85"/>
+  <rect x="364" y="96" width="68" height="352" rx="10" fill="#22c55e"/>
+  <polyline points="120,290 212,218 304,142 396,80" stroke="#4ade80" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <circle cx="396" cy="80" r="16" fill="#4ade80"/>
+  <rect x="48" y="48" width="110" height="46" rx="10" fill="#15803d"/>
+  <text x="103" y="80" font-family="Arial Black,Arial,sans-serif" font-size="24" font-weight="900" fill="white" text-anchor="middle">KE</text>
 </svg>

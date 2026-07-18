@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { ArrowRight, Clock, TrendingUp, Shield, Users, Smartphone } from "lucide-react";
+import { useSeo } from "@/hooks/use-seo";
 
 const articles = [
   {
@@ -49,6 +50,10 @@ const articles = [
 ];
 
 export default function BlogIndex() {
+  useSeo({
+    title: "Kenya M-Pesa Investment Guide — Learn to Grow Your Money | StakeKE",
+    description: "Expert guides on M-Pesa investing, staking plans, referrals, and financial safety — written for Kenyan investors by StakeKE.",
+  });
   return (
     <div className="min-h-screen bg-[#060d08]">
       {/* Header */}

@@ -1,7 +1,14 @@
 import { Link } from "wouter";
 import { TrendingUp, ArrowLeft, CheckCircle, Smartphone, Wallet, Clock, ArrowRight } from "lucide-react";
+import { useSeo } from "@/hooks/use-seo";
 
 export default function HowToInvestMpesa() {
+  useSeo({
+    title: "How to Invest via M-Pesa in Kenya — Step-by-Step Guide | StakeKE",
+    description: "Learn exactly how to deposit money through M-Pesa STK Push, pick a staking plan, and start earning daily returns in Kenya — no bank account needed.",
+    type: "article",
+    datePublished: "2026-07-17T00:00:00Z",
+  });
   return (
     <div className="min-h-screen bg-[#060d08]">
       {/* Header */}

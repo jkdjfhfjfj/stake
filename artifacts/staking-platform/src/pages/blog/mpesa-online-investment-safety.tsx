@@ -1,7 +1,14 @@
 import { Link } from "wouter";
 import { TrendingUp, ArrowLeft, ArrowRight, Shield, CheckCircle, XCircle, Lock, Eye } from "lucide-react";
+import { useSeo } from "@/hooks/use-seo";
 
 export default function MpesaOnlineInvestmentSafety() {
+  useSeo({
+    title: "Is Online M-Pesa Investment Safe? What to Look For in Kenya | StakeKE",
+    description: "A practical guide to evaluating online investment platforms in Kenya — what red flags to avoid, and what makes StakeKE transparent and secure.",
+    type: "article",
+    datePublished: "2026-07-17T00:00:00Z",
+  });
   return (
     <div className="min-h-screen bg-[#060d08]">
       <div className="border-b border-green-900/20 bg-[#080f0a]">
