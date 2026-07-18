@@ -517,7 +517,11 @@ export const GetAdminSettingsResponse = zod.object({
   "payheroPassword": zod.string(),
   "payheroChannelId": zod.string(),
   "tier1ReferralPercent": zod.number(),
-  "tier2ReferralPercent": zod.number()
+  "tier2ReferralPercent": zod.number(),
+  "minDeposit": zod.number(),
+  "maxDeposit": zod.number(),
+  "minWithdrawal": zod.number(),
+  "maxWithdrawal": zod.number()
 })
 
 
@@ -529,7 +533,11 @@ export const UpdateAdminSettingsBody = zod.object({
   "payheroPassword": zod.string().optional(),
   "payheroChannelId": zod.string().optional(),
   "tier1ReferralPercent": zod.number().optional(),
-  "tier2ReferralPercent": zod.number().optional()
+  "tier2ReferralPercent": zod.number().optional(),
+  "minDeposit": zod.number().optional(),
+  "maxDeposit": zod.number().optional(),
+  "minWithdrawal": zod.number().optional(),
+  "maxWithdrawal": zod.number().optional()
 })
 
 export const UpdateAdminSettingsResponse = zod.object({
@@ -537,7 +545,11 @@ export const UpdateAdminSettingsResponse = zod.object({
   "payheroPassword": zod.string(),
   "payheroChannelId": zod.string(),
   "tier1ReferralPercent": zod.number(),
-  "tier2ReferralPercent": zod.number()
+  "tier2ReferralPercent": zod.number(),
+  "minDeposit": zod.number(),
+  "maxDeposit": zod.number(),
+  "minWithdrawal": zod.number(),
+  "maxWithdrawal": zod.number()
 })
 
 

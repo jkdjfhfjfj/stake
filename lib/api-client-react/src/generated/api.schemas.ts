@@ -331,6 +331,10 @@ export interface PlatformSettings {
   payheroChannelId: string;
   tier1ReferralPercent: number;
   tier2ReferralPercent: number;
+  minDeposit: number;
+  maxDeposit: number;
+  minWithdrawal: number;
+  maxWithdrawal: number;
 }
 
 export interface PlatformSettingsUpdate {
@@ -339,6 +343,10 @@ export interface PlatformSettingsUpdate {
   payheroChannelId?: string;
   tier1ReferralPercent?: number;
   tier2ReferralPercent?: number;
+  minDeposit?: number;
+  maxDeposit?: number;
+  minWithdrawal?: number;
+  maxWithdrawal?: number;
 }
 
 export interface CronResult {

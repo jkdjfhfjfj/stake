@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import {
   Settings, Eye, EyeOff, Save, Wifi, WifiOff, Loader2, PlayCircle,
   CreditCard, GitBranch, Info, MessageCircle, Camera, CheckCircle, Bot,
+  ArrowDownLeft, ArrowUpRight,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getToken } from "@/lib/auth";
@@ -36,6 +37,10 @@ export default function AdminSettings() {
     payheroChannelId: "",
     tier1ReferralPercent: 5,
     tier2ReferralPercent: 2,
+    minDeposit: 10,
+    maxDeposit: 150000,
+    minWithdrawal: 100,
+    maxWithdrawal: 150000,
   });
 
   const [extForm, setExtForm] = useState({
@@ -61,6 +66,10 @@ export default function AdminSettings() {
         payheroChannelId: data.payheroChannelId ?? "",
         tier1ReferralPercent: data.tier1ReferralPercent ?? 5,
         tier2ReferralPercent: data.tier2ReferralPercent ?? 2,
+        minDeposit: data.minDeposit ?? 10,
+        maxDeposit: data.maxDeposit ?? 150000,
+        minWithdrawal: data.minWithdrawal ?? 100,
+        maxWithdrawal: data.maxWithdrawal ?? 150000,
       });
     }
   }, [data]);
@@ -85,7 +94,7 @@ export default function AdminSettings() {
   const update = useUpdateAdminSettings({
     mutation: {
       onSuccess: () => {
-        toast({ title: "PayHero & Referral settings saved!", variant: "success" });
+        toast({ title: "Settings saved!", description: "PayHero, referral rates, and limits updated.", variant: "success" });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
       },
       onError: (e: any) => {
@@ -157,8 +166,9 @@ export default function AdminSettings() {
     }
   };
 
+  const NUMERIC_KEYS = new Set(["tier1ReferralPercent","tier2ReferralPercent","minDeposit","maxDeposit","minWithdrawal","maxWithdrawal"]);
   const f = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm(prev => ({ ...prev, [key]: key.includes("Percent") ? Number(e.target.value) : e.target.value }));
+    setForm(prev => ({ ...prev, [key]: NUMERIC_KEYS.has(key) ? Number(e.target.value) : e.target.value }));
 
   const ef = (key: keyof typeof extForm) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setExtForm(prev => ({ ...prev, [key]: e.target.value }));
@@ -273,11 +283,73 @@ export default function AdminSettings() {
         </CardContent>
       </Card>
 
+      {/* Transaction Limits */}
+      <Card className="bg-[#0d1a10] border-green-900/30">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base text-white flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-yellow-900/30 flex items-center justify-center">
+              <ArrowDownLeft className="w-3.5 h-3.5 text-yellow-400" />
+            </div>
+            Transaction Limits
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-gray-400">
+            Min and max amounts enforced on all user deposit and withdrawal requests. Changes take effect immediately — no restart needed.
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-gray-300 text-xs flex items-center gap-1.5">
+                <ArrowDownLeft className="w-3 h-3 text-green-400" /> Min Deposit (KES)
+              </Label>
+              <Input value={form.minDeposit} type="number" min={1}
+                onChange={f("minDeposit")}
+                className="mt-1 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-9" />
+              <p className="text-[10px] text-gray-500 mt-1">Smallest deposit allowed</p>
+            </div>
+            <div>
+              <Label className="text-gray-300 text-xs flex items-center gap-1.5">
+                <ArrowDownLeft className="w-3 h-3 text-green-400" /> Max Deposit (KES)
+              </Label>
+              <Input value={form.maxDeposit} type="number" min={1}
+                onChange={f("maxDeposit")}
+                className="mt-1 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-9" />
+              <p className="text-[10px] text-gray-500 mt-1">Largest deposit allowed</p>
+            </div>
+            <div>
+              <Label className="text-gray-300 text-xs flex items-center gap-1.5">
+                <ArrowUpRight className="w-3 h-3 text-blue-400" /> Min Withdrawal (KES)
+              </Label>
+              <Input value={form.minWithdrawal} type="number" min={1}
+                onChange={f("minWithdrawal")}
+                className="mt-1 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-9" />
+              <p className="text-[10px] text-gray-500 mt-1">Smallest withdrawal allowed</p>
+            </div>
+            <div>
+              <Label className="text-gray-300 text-xs flex items-center gap-1.5">
+                <ArrowUpRight className="w-3 h-3 text-blue-400" /> Max Withdrawal (KES)
+              </Label>
+              <Input value={form.maxWithdrawal} type="number" min={1}
+                onChange={f("maxWithdrawal")}
+                className="mt-1 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500 h-9" />
+              <p className="text-[10px] text-gray-500 mt-1">Largest withdrawal allowed</p>
+            </div>
+          </div>
+          <div className="bg-[#0a1410] border border-green-900/20 rounded-xl p-3 text-xs text-gray-400 space-y-1">
+            <p className="text-gray-300 font-medium">Current effective limits:</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 mt-1">
+              <div className="flex justify-between"><span>Deposit</span><span className="text-green-400 font-medium">KES {form.minDeposit.toLocaleString()} – {form.maxDeposit.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span>Withdrawal</span><span className="text-blue-400 font-medium">KES {form.minWithdrawal.toLocaleString()} – {form.maxWithdrawal.toLocaleString()}</span></div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Button className="bg-green-600 hover:bg-green-500 gap-2 w-full sm:w-auto h-10"
         disabled={update.isPending}
         onClick={() => update.mutate({ data: form })}>
         <Save className="w-4 h-4" />
-        {update.isPending ? "Saving…" : "Save PayHero & Referral Settings"}
+        {update.isPending ? "Saving…" : "Save PayHero, Referral & Limits"}
       </Button>
 
       {/* WhatsApp Support */}

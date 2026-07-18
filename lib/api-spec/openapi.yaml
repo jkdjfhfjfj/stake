@@ -813,13 +813,17 @@ components:
 
     PlatformSettings:
       type: object
-      required: [payheroUsername, payheroPassword, payheroChannelId, tier1ReferralPercent, tier2ReferralPercent]
+      required: [payheroUsername, payheroPassword, payheroChannelId, tier1ReferralPercent, tier2ReferralPercent, minDeposit, maxDeposit, minWithdrawal, maxWithdrawal]
       properties:
         payheroUsername:      { type: string }
         payheroPassword:      { type: string }
         payheroChannelId:     { type: string }
         tier1ReferralPercent: { type: number }
         tier2ReferralPercent: { type: number }
+        minDeposit:           { type: number }
+        maxDeposit:           { type: number }
+        minWithdrawal:        { type: number }
+        maxWithdrawal:        { type: number }
 
     PlatformSettingsUpdate:
       type: object
@@ -829,6 +833,10 @@ components:
         payheroChannelId:     { type: string }
         tier1ReferralPercent: { type: number }
         tier2ReferralPercent: { type: number }
+        minDeposit:           { type: number }
+        maxDeposit:           { type: number }
+        minWithdrawal:        { type: number }
+        maxWithdrawal:        { type: number }
 
     CronResult:
       type: object

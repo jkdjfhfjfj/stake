@@ -456,6 +456,10 @@ router.get("/admin/settings", requireAdmin, async (_req, res): Promise<void> => 
     payheroChannelId: map["payhero_channel_id"] ?? "",
     tier1ReferralPercent: Number(map["tier1_referral_percent"] ?? "5"),
     tier2ReferralPercent: Number(map["tier2_referral_percent"] ?? "2"),
+    minDeposit: Number(map["min_deposit"] ?? "10"),
+    maxDeposit: Number(map["max_deposit"] ?? "150000"),
+    minWithdrawal: Number(map["min_withdrawal"] ?? "100"),
+    maxWithdrawal: Number(map["max_withdrawal"] ?? "150000"),
   }));
 });
 
@@ -473,6 +477,10 @@ router.patch("/admin/settings", requireAdmin, async (req, res): Promise<void> =>
     payheroChannelId: "payhero_channel_id",
     tier1ReferralPercent: "tier1_referral_percent",
     tier2ReferralPercent: "tier2_referral_percent",
+    minDeposit: "min_deposit",
+    maxDeposit: "max_deposit",
+    minWithdrawal: "min_withdrawal",
+    maxWithdrawal: "max_withdrawal",
   };
 
   for (const [field, dbKey] of Object.entries(keyMap)) {
@@ -502,6 +510,10 @@ router.patch("/admin/settings", requireAdmin, async (req, res): Promise<void> =>
     payheroChannelId: map["payhero_channel_id"] ?? "",
     tier1ReferralPercent: Number(map["tier1_referral_percent"] ?? "5"),
     tier2ReferralPercent: Number(map["tier2_referral_percent"] ?? "2"),
+    minDeposit: Number(map["min_deposit"] ?? "10"),
+    maxDeposit: Number(map["max_deposit"] ?? "150000"),
+    minWithdrawal: Number(map["min_withdrawal"] ?? "100"),
+    maxWithdrawal: Number(map["max_withdrawal"] ?? "150000"),
   }));
 });
 
@@ -747,8 +759,7 @@ router.patch("/admin/settings/extended", requireAdmin, async (req, res): Promise
 
 // ── Public Settings (no auth, returns non-sensitive config) ─────────────────
 router.get("/settings/public", async (_req, res): Promise<void> => {
-  const rows = await db.select().from(platformSettingsTable)
-    .where(inArray(platformSettingsTable.key, ["whatsapp_number", "cloudinary_cloud_name", "cloudinary_upload_preset", "groq_api_key"] as any));
+  const rows = await db.select().from(platformSettingsTable);
   const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
   const groqKey = map["groq_api_key"] || process.env.QROK_API_KEY || "";
   res.json({
@@ -756,6 +767,10 @@ router.get("/settings/public", async (_req, res): Promise<void> => {
     cloudinaryCloudName: map["cloudinary_cloud_name"] ?? "",
     cloudinaryUploadPreset: map["cloudinary_upload_preset"] ?? "",
     qrokEnabled: Boolean(groqKey),
+    minDeposit: Number(map["min_deposit"] ?? "10"),
+    maxDeposit: Number(map["max_deposit"] ?? "150000"),
+    minWithdrawal: Number(map["min_withdrawal"] ?? "100"),
+    maxWithdrawal: Number(map["max_withdrawal"] ?? "150000"),
   });
 });
 

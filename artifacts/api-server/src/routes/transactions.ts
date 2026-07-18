@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, transactionsTable, usersTable } from "@workspace/db";
+import { db, transactionsTable, usersTable, platformSettingsTable } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import { initiateSTKPush } from "../lib/payhero";
 import { createNotification } from "../lib/notifications";
@@ -17,6 +17,18 @@ function getCallbackBaseUrl(): string {
   if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL.replace(/\/$/, "");
   if (process.env.REPLIT_DOMAINS) return `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`;
   return "http://localhost:8080";
+}
+
+/** Load platform limits from DB, falling back to safe defaults. */
+async function getLimits() {
+  const rows = await db.select().from(platformSettingsTable);
+  const m = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  return {
+    minDeposit:    Number(m["min_deposit"]    ?? "10"),
+    maxDeposit:    Number(m["max_deposit"]    ?? "150000"),
+    minWithdrawal: Number(m["min_withdrawal"] ?? "100"),
+    maxWithdrawal: Number(m["max_withdrawal"] ?? "150000"),
+  };
 }
 
 const router = Router();
@@ -46,8 +58,14 @@ router.post("/transactions/deposit", requireAuth, async (req, res): Promise<void
   }
   const { amount, phoneNumber } = parsed.data;
 
-  if (amount < 10) {
-    res.status(400).json({ error: "Minimum deposit is KES 10" });
+  const { minDeposit, maxDeposit } = await getLimits();
+
+  if (amount < minDeposit) {
+    res.status(400).json({ error: `Minimum deposit is KES ${minDeposit.toLocaleString("en-KE")}` });
+    return;
+  }
+  if (amount > maxDeposit) {
+    res.status(400).json({ error: `Maximum deposit is KES ${maxDeposit.toLocaleString("en-KE")}` });
     return;
   }
 
@@ -67,7 +85,7 @@ router.post("/transactions/deposit", requireAuth, async (req, res): Promise<void
   const callbackUrl = `${getCallbackBaseUrl()}/api/webhooks/payhero`;
 
   try {
-    const result = await initiateSTKPush({
+    await initiateSTKPush({
       amount,
       phoneNumber,
       reference: externalReference,
@@ -119,8 +137,14 @@ router.post("/transactions/withdraw", requireAuth, async (req, res): Promise<voi
   const { amount, phoneNumber } = parsed.data;
   const user = req.dbUser!;
 
-  if (amount < 100) {
-    res.status(400).json({ error: "Minimum withdrawal is KES 100" });
+  const { minWithdrawal, maxWithdrawal } = await getLimits();
+
+  if (amount < minWithdrawal) {
+    res.status(400).json({ error: `Minimum withdrawal is KES ${minWithdrawal.toLocaleString("en-KE")}` });
+    return;
+  }
+  if (amount > maxWithdrawal) {
+    res.status(400).json({ error: `Maximum withdrawal is KES ${maxWithdrawal.toLocaleString("en-KE")}` });
     return;
   }
 

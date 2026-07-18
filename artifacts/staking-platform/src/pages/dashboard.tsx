@@ -66,7 +66,7 @@ const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS  = 120_000; // 2 minutes
 
 /* ── Deposit Dialog ──────────────────────────────────────────── */
-function DepositDialog({ phone }: { phone?: string | null }) {
+function DepositDialog({ phone, minDeposit, maxDeposit }: { phone?: string | null; minDeposit: number; maxDeposit: number }) {
   const [amount, setAmount]     = useState("");
   const [phoneN, setPhoneN]     = useState(phone ?? "");
   const [open, setOpen]         = useState(false);
@@ -74,7 +74,7 @@ function DepositDialog({ phone }: { phone?: string | null }) {
   const [externalRef, setExternalRef] = useState("");
   const [countdown, setCountdown]     = useState(0);
   const { toast }               = useToast();
-  const presets                 = [500, 1000, 5000, 10000];
+  const presets                 = [500, 1000, 5000, 10000].filter(p => p >= minDeposit && p <= maxDeposit);
   const pollRef                 = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef              = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startedAtRef            = useRef<number>(0);
@@ -242,22 +242,35 @@ function DepositDialog({ phone }: { phone?: string | null }) {
         {pollState === "idle" && (
           <div className="space-y-4 pt-1">
             <div>
-              <Label className="text-gray-400 text-xs">Amount (KES)</Label>
+              <div className="flex justify-between items-center mb-1.5">
+                <Label className="text-gray-400 text-xs">Amount (KES)</Label>
+                <span className="text-[10px] text-gray-500">
+                  Min {fmt(minDeposit)} · Max {fmt(maxDeposit)}
+                </span>
+              </div>
               <Input value={amount} onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00" type="number"
-                className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white text-xl h-12 focus:border-green-500" />
-              <div className="grid grid-cols-4 gap-1.5 mt-2">
-                {presets.map((p) => (
-                  <button key={p} onClick={() => setAmount(String(p))}
-                    className={`py-2 text-xs rounded-lg border font-medium ${
-                      amount === String(p)
-                        ? "border-green-500 bg-[#0a2510] text-green-300"
-                        : "border-green-900/30 text-gray-500"
-                    }`}>
-                    {p >= 1000 ? `${p / 1000}K` : p}
-                  </button>
-                ))}
-              </div>
+                className="bg-[#0a0f0d] border-green-900/40 text-white text-xl h-12 focus:border-green-500" />
+              {presets.length > 0 && (
+                <div className="grid grid-cols-4 gap-1.5 mt-2">
+                  {presets.map((p) => (
+                    <button key={p} onClick={() => setAmount(String(p))}
+                      className={`py-2 text-xs rounded-lg border font-medium ${
+                        amount === String(p)
+                          ? "border-green-500 bg-[#0a2510] text-green-300"
+                          : "border-green-900/30 text-gray-500"
+                      }`}>
+                      {p >= 1000 ? `${p / 1000}K` : p}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {Number(amount) > 0 && Number(amount) < minDeposit && (
+                <p className="text-xs text-red-400 mt-1">Minimum deposit is {fmt(minDeposit)}</p>
+              )}
+              {Number(amount) > maxDeposit && (
+                <p className="text-xs text-red-400 mt-1">Maximum deposit is {fmt(maxDeposit)}</p>
+              )}
             </div>
             <div>
               <Label className="text-gray-400 text-xs">M-Pesa Number</Label>
@@ -265,7 +278,7 @@ function DepositDialog({ phone }: { phone?: string | null }) {
                 placeholder="07XXXXXXXX"
                 className="mt-1.5 bg-[#0a0f0d] border-green-900/40 text-white focus:border-green-500" />
             </div>
-            {Number(amount) > 0 && (
+            {Number(amount) >= minDeposit && Number(amount) <= maxDeposit && (
               <div className="bg-[#0a1a0d] rounded-xl p-3 border border-green-900/30 text-sm">
                 <div className="flex justify-between text-gray-400 mb-1">
                   <span>You send</span>
@@ -278,7 +291,7 @@ function DepositDialog({ phone }: { phone?: string | null }) {
               </div>
             )}
             <Button className="w-full bg-green-600 hover:bg-green-500 h-11 font-semibold"
-              disabled={!amount || !phoneN || deposit.isPending}
+              disabled={!amount || !phoneN || deposit.isPending || Number(amount) < minDeposit || Number(amount) > maxDeposit}
               onClick={() => deposit.mutate({ data: { amount: Number(amount), phoneNumber: phoneN } })}>
               {deposit.isPending ? "Sending…" : "Send STK Push"}
             </Button>
@@ -291,13 +304,14 @@ function DepositDialog({ phone }: { phone?: string | null }) {
 }
 
 /* ── Withdraw Dialog ─────────────────────────────────────────── */
-function WithdrawDialog({ phone, max }: { phone?: string | null; max: number }) {
+function WithdrawDialog({ phone, max, minWithdrawal, maxWithdrawal }: { phone?: string | null; max: number; minWithdrawal: number; maxWithdrawal: number }) {
   const [amount, setAmount] = useState("");
   const [phoneN, setPhoneN] = useState(phone ?? "");
   const [open, setOpen]     = useState(false);
   const { toast }           = useToast();
   const amtNum              = Number(amount);
-  const valid               = amtNum >= 100 && amtNum <= max && phoneN.length >= 10;
+  const effectiveMax        = Math.min(max, maxWithdrawal);
+  const valid               = amtNum >= minWithdrawal && amtNum <= effectiveMax && phoneN.length >= 10;
 
   const withdraw = useRequestWithdrawal({
     mutation: {
@@ -333,11 +347,20 @@ function WithdrawDialog({ phone, max }: { phone?: string | null; max: number }) 
           <div>
             <div className="flex justify-between mb-1.5">
               <Label className="text-gray-400 text-xs">Amount (KES)</Label>
-              <button onClick={() => setAmount(String(max))} className="text-xs text-green-400">Use max</button>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-gray-500">Min {fmt(minWithdrawal)} · Max {fmt(effectiveMax)}</span>
+                <button onClick={() => setAmount(String(effectiveMax))} className="text-xs text-green-400">Use max</button>
+              </div>
             </div>
             <Input value={amount} onChange={(e) => setAmount(e.target.value)}
-              placeholder="Min. 100" type="number"
+              placeholder={`Min. ${minWithdrawal.toLocaleString("en-KE")}`} type="number"
               className="bg-[#0a0f0d] border-green-900/40 text-white text-xl h-12 focus:border-green-500" />
+            {amtNum > 0 && amtNum < minWithdrawal && (
+              <p className="text-xs text-red-400 mt-1">Minimum withdrawal is {fmt(minWithdrawal)}</p>
+            )}
+            {amtNum > effectiveMax && (
+              <p className="text-xs text-red-400 mt-1">Maximum withdrawal is {fmt(effectiveMax)}</p>
+            )}
           </div>
           <div>
             <Label className="text-gray-400 text-xs">M-Pesa Number</Label>
@@ -432,6 +455,18 @@ export default function DashboardPage() {
   const { data: dash, isLoading } = useGetDashboard();
   const { data: stakes = [] }     = useListStakes();
   const [selectedTx, setSelectedTx] = useState<any>(null);
+  const [limits, setLimits] = useState({ minDeposit: 10, maxDeposit: 150000, minWithdrawal: 100, maxWithdrawal: 150000 });
+
+  useEffect(() => {
+    fetch("/api/settings/public")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && typeof d.minDeposit === "number") {
+          setLimits({ minDeposit: d.minDeposit, maxDeposit: d.maxDeposit, minWithdrawal: d.minWithdrawal, maxWithdrawal: d.maxWithdrawal });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const activeStakes   = (stakes as any[]).filter((s) => s.status === "ACTIVE");
   const totalPortfolio = (dash?.availableBalance ?? 0) + (dash?.totalStaked ?? 0);
@@ -519,8 +554,8 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex gap-2">
-            <DepositDialog phone={me?.mpesaNumber} />
-            <WithdrawDialog phone={me?.mpesaNumber} max={dash?.availableBalance ?? 0} />
+            <DepositDialog phone={me?.mpesaNumber} minDeposit={limits.minDeposit} maxDeposit={limits.maxDeposit} />
+            <WithdrawDialog phone={me?.mpesaNumber} max={dash?.availableBalance ?? 0} minWithdrawal={limits.minWithdrawal} maxWithdrawal={limits.maxWithdrawal} />
           </div>
         </div>
 
