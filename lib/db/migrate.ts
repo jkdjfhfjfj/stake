@@ -44,22 +44,28 @@ async function tableExists(client: pg.PoolClient, tableName: string): Promise<bo
   return rows[0].exists;
 }
 
+// drizzle-orm programmatic migrator defaults to schema "drizzle",
+// table "__drizzle_migrations" — i.e. drizzle.__drizzle_migrations.
+const DRIZZLE_SCHEMA = "drizzle";
+const DRIZZLE_TABLE = "__drizzle_migrations";
+
 async function baseline(client: pg.PoolClient) {
-  // Ensure the drizzle migrations table exists (migrate() creates it too, but
-  // we need it before we can insert the baseline rows).
+  // Mirror exactly what migrate() does: create the schema + table first.
+  await client.query(`CREATE SCHEMA IF NOT EXISTS "${DRIZZLE_SCHEMA}"`);
   await client.query(`
-    CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
-      id        SERIAL PRIMARY KEY,
-      hash      TEXT NOT NULL,
+    CREATE TABLE IF NOT EXISTS "${DRIZZLE_SCHEMA}"."${DRIZZLE_TABLE}" (
+      id         SERIAL PRIMARY KEY,
+      hash       TEXT NOT NULL,
       created_at BIGINT
     )
   `);
 
   const { rows } = await client.query<{ count: string }>(
-    `SELECT COUNT(*) AS count FROM "__drizzle_migrations"`,
+    `SELECT COUNT(*) AS count FROM "${DRIZZLE_SCHEMA}"."${DRIZZLE_TABLE}"`,
   );
   if (Number(rows[0].count) > 0) {
     // Already has history — nothing to baseline.
+    console.log("  Migration history already present, skipping baseline.");
     return;
   }
 
@@ -72,13 +78,12 @@ async function baseline(client: pg.PoolClient) {
     const sqlPath = path.join(MIGRATIONS_DIR, `${entry.tag}.sql`);
     if (!fs.existsSync(sqlPath)) continue;
 
-    const sql = fs.readFileSync(sqlPath, "utf8");
-    // drizzle-orm/node-postgres/migrator hashes the raw SQL content with SHA256
-    const hash = crypto.createHash("sha256").update(sql).digest("hex");
+    const sqlContent = fs.readFileSync(sqlPath, "utf8");
+    // drizzle-orm hashes the raw SQL file content with SHA256
+    const hash = crypto.createHash("sha256").update(sqlContent).digest("hex");
 
     await client.query(
-      `INSERT INTO "__drizzle_migrations" (hash, created_at) VALUES ($1, $2)
-       ON CONFLICT DO NOTHING`,
+      `INSERT INTO "${DRIZZLE_SCHEMA}"."${DRIZZLE_TABLE}" (hash, created_at) VALUES ($1, $2)`,
       [hash, entry.when],
     );
     console.log(`  Stamped as applied: ${entry.tag}`);
