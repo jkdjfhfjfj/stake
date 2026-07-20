@@ -153,7 +153,7 @@ router.post("/stakes/:id/break", requireAuth, async (req, res): Promise<void> =>
 
   const [updated] = await db.transaction(async (tx) => {
     const [s] = await tx.update(stakesTable)
-      .set({ status: "BROKEN" })
+      .set({ status: "BROKEN", currentValue: "0" })
       .where(eq(stakesTable.id, stake.id))
       .returning();
 

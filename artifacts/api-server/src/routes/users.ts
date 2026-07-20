@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and } from "drizzle-orm";
 import { db, usersTable, stakesTable, transactionsTable } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import {
@@ -115,11 +115,11 @@ router.get("/users/me/dashboard", requireAuth, async (req, res): Promise<void> =
 
   const activeStakes = await db.select({ count: sql<number>`count(*)` })
     .from(stakesTable)
-    .where(eq(stakesTable.userId, req.userId!));
+    .where(and(eq(stakesTable.userId, req.userId!), eq(stakesTable.status, "ACTIVE")));
 
   const totalStakedResult = await db.select({ total: sql<number>`coalesce(sum(current_value), 0)` })
     .from(stakesTable)
-    .where(eq(stakesTable.userId, req.userId!));
+    .where(and(eq(stakesTable.userId, req.userId!), eq(stakesTable.status, "ACTIVE")));
 
   const recentTxs = await db.select()
     .from(transactionsTable)

@@ -540,7 +540,7 @@ router.post("/admin/cron/process-stakes", requireAdmin, async (_req, res): Promi
       newEndDate.setDate(newEndDate.getDate() + stake.plan.durationDays);
 
       await db.transaction(async (tx) => {
-        await tx.update(stakesTable).set({ status: "COMPLETED", accruedInterest: interest.toFixed(2) }).where(eq(stakesTable.id, stake.id));
+        await tx.update(stakesTable).set({ status: "COMPLETED", currentValue: "0", accruedInterest: interest.toFixed(2) }).where(eq(stakesTable.id, stake.id));
 
         await tx.insert(stakesTable).values({
           userId: stake.userId,
@@ -569,7 +569,7 @@ router.post("/admin/cron/process-stakes", requireAdmin, async (_req, res): Promi
     } else {
       // Return funds to available balance
       await db.transaction(async (tx) => {
-        await tx.update(stakesTable).set({ status: "COMPLETED", accruedInterest: interest.toFixed(2) }).where(eq(stakesTable.id, stake.id));
+        await tx.update(stakesTable).set({ status: "COMPLETED", currentValue: "0", accruedInterest: interest.toFixed(2) }).where(eq(stakesTable.id, stake.id));
 
         const user = await tx.query.usersTable.findFirst({ where: eq(usersTable.id, stake.userId) });
         await tx.update(usersTable).set({
