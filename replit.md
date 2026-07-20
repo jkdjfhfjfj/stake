@@ -8,7 +8,9 @@ A full-stack Kenyan investment/staking platform where users deposit via M-Pesa, 
 - `pnpm --filter @workspace/api-server run dev` — API server (port 8080)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- `pnpm --filter @workspace/db run generate` — generate a new SQL migration file after schema changes
+- `pnpm --filter @workspace/db run migrate` — apply pending migrations (used by Render on every deploy)
+- `pnpm --filter @workspace/db run push` — push schema directly, no migration files (dev shortcut only)
 - `pnpm --filter @workspace/scripts run seed` — seed staking plans and platform settings
 
 ## Stack

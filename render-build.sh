@@ -14,8 +14,8 @@ echo "==> pnpm $(pnpm --version)"
 echo "==> Installing workspace dependencies..."
 pnpm install --frozen-lockfile
 
-echo "==> Pushing DB schema to Neon (auto-migrate)..."
-pnpm --filter @workspace/db run push
+echo "==> Applying DB migrations..."
+pnpm --filter @workspace/db run migrate
 
 echo "==> Seeding staking plans (safe to re-run)..."
 pnpm --filter @workspace/scripts run seed || echo "Seed skipped"
