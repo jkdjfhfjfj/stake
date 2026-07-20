@@ -28,7 +28,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = path.join(__dirname, "../migrations");
+const MIGRATIONS_DIR = path.join(__dirname, "./migrations");
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const db = drizzle(pool);
